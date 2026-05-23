@@ -1,0 +1,47 @@
+/*
+ * Custom scripts
+ *
+ */
+;(function ($) {
+	//"use strict";
+
+	var blogolife = {
+
+		// Start Functions
+		startSwp: function () {
+			blogolife.FoundationSwp();
+			blogolife.AdminBarSwp();
+			blogolife.KeybordNavSwp();
+		},
+
+		//Init Foundatio
+		FoundationSwp: function () {
+			jQuery(document).foundation();
+		},
+
+
+		AdminBarSwp: function() {
+			if (jQuery('.admin-bar').length) {
+				jQuery('.menu-btn').css({ top: '32px' });
+			}
+		},
+
+		//Keybord navigarion
+		KeybordNavSwp: function() {
+			jQuery( document ).keydown( function( e ) {
+				var url = false;
+				if ( e.which == 37 ) {  // Left arrow key code
+					url = jQuery( '.post-nav-prev-attachment a' ).attr( 'href' );
+				}
+				else if ( e.which == 39 ) {  // Right arrow key code
+					url = jQuery( '.post-nav-next-attachment a' ).attr( 'href' );
+				}
+			} );
+		},
+	};
+
+	jQuery(document).ready(function () {
+		blogolife.startSwp();
+	});
+
+})(jQuery);

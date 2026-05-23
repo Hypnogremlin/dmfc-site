@@ -39,3 +39,12 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# private planning and agent-prompting docs — not for the public repo
+PLAN.md
+CLAUDE.md
+AGENTS.md
+DESIGN.md
+site-reference.md
+.claude/
+
