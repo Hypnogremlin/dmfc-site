@@ -102,10 +102,12 @@ export default function Home() {
           <div className="col-span-12 md:col-span-8">
             <div className="border-t border-rule">
               {[
-                ["Monday", "Foil", "6:30p · Youth class & bouting"],
-                ["Monday", "Foil", "8:00p · Adult class & bouting"],
-                ["Monday", "Épée", "8:00p · Adult épée"],
-                ["Thursday", "Saber", "6:00p · Class & bouting"],
+                ["Monday", "Foil", "6:30–7:30p · Youth class"],
+                ["Monday", "Épée", "6:30–7:30p · Adult class"],
+                ["Monday", "Foil", "8:00–9:00p · Adult class"],
+                ["Monday", "Open Bouting", "9:00–10:00p · All weapons"],
+                ["Thursday", "Saber", "6:30–7:30p · Class"],
+                ["Thursday", "Open Bouting", "8:00–9:00p · All weapons"],
               ].map(([day, weapon, detail], i) => (
                 <div
                   key={i}

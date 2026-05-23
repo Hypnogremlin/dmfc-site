@@ -60,8 +60,8 @@ export function Footer() {
                 </Link>
               </li>
               <li>
-                <Link href="/events" className="underline-draw hover:text-brass transition-colors">
-                  Tournaments
+                <Link href="/news" className="underline-draw hover:text-brass transition-colors">
+                  News &amp; Tournaments
                 </Link>
               </li>
             </ul>
