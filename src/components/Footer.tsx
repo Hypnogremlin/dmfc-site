@@ -50,6 +50,36 @@ export function Footer() {
             <Eyebrow>Site</Eyebrow>
             <ul className="mt-4 space-y-2 text-sm text-bone/80">
               <li>
+                <Link href="/about" className="underline-draw hover:text-brass transition-colors">
+                  About
+                </Link>
+              </li>
+              <li>
+                <Link href="/classes" className="underline-draw hover:text-brass transition-colors">
+                  Classes
+                </Link>
+              </li>
+              <li>
+                <Link href="/coaches" className="underline-draw hover:text-brass transition-colors">
+                  Coaches
+                </Link>
+              </li>
+              <li>
+                <Link href="/fees" className="underline-draw hover:text-brass transition-colors">
+                  Fees
+                </Link>
+              </li>
+              <li>
+                <Link href="/news" className="underline-draw hover:text-brass transition-colors">
+                  News &amp; Tournaments
+                </Link>
+              </li>
+              <li>
+                <Link href="/contact" className="underline-draw hover:text-brass transition-colors">
+                  Contact
+                </Link>
+              </li>
+              <li>
                 <Link href="/observe" className="underline-draw hover:text-brass transition-colors">
                   Observe a Class
                 </Link>
@@ -57,11 +87,6 @@ export function Footer() {
               <li>
                 <Link href="/members" className="underline-draw hover:text-brass transition-colors">
                   Members
-                </Link>
-              </li>
-              <li>
-                <Link href="/news" className="underline-draw hover:text-brass transition-colors">
-                  News &amp; Tournaments
                 </Link>
               </li>
             </ul>

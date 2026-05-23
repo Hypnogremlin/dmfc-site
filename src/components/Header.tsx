@@ -3,6 +3,7 @@ import Image from "next/image";
 import { Container } from "./Container";
 import { NavLink } from "./NavLink";
 import { Button } from "./Button";
+import { MobileMenu } from "./MobileMenu";
 
 const navItems = [
   { href: "/about", label: "About" },
@@ -15,7 +16,7 @@ const navItems = [
 
 export function Header() {
   return (
-    <header className="border-b border-rule bg-paper">
+    <header className="relative border-b border-rule bg-paper">
       <Container className="flex items-center justify-between py-5">
         <Link
           href="/"
@@ -48,11 +49,11 @@ export function Header() {
           </Button>
         </nav>
 
-        {/* Mobile placeholder — hamburger menu to be implemented when content pages exist */}
-        <div className="lg:hidden">
+        <div className="lg:hidden flex items-center gap-2">
           <Button as="link" href="/observe" variant="primary">
             Observe
           </Button>
+          <MobileMenu items={navItems} />
         </div>
       </Container>
     </header>
