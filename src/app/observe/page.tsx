@@ -35,6 +35,9 @@ export default function ObservePage() {
       <StripRule className="mb-12" />
 
       <div className="max-w-4xl">
+        <p className="text-sm text-mute mb-6">
+          Foil Youth is ages 8–11; Foil Adult is ages 12 and up.
+        </p>
         <ObservationForm />
       </div>
     </Section>
