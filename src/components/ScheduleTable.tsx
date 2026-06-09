@@ -28,7 +28,7 @@ export function ScheduleTable({
             </th>
             <th
               scope="col"
-              className="py-3 pr-6 text-[11px] font-semibold uppercase tracking-[0.18em] text-mute hidden sm:table-cell"
+              className="py-3 pr-6 text-[11px] font-semibold uppercase tracking-[0.18em] text-mute"
             >
               Ages
             </th>
@@ -60,7 +60,7 @@ export function ScheduleTable({
                   {row.segment}
                 </span>
               </th>
-              <td className="py-5 pr-6 text-[15px] text-mute hidden sm:table-cell">
+              <td className="py-5 pr-6 text-[15px] text-mute">
                 {row.ageGroup}
               </td>
               <td className="py-5 pr-6 text-[15px] text-ink whitespace-nowrap">
@@ -73,10 +73,6 @@ export function ScheduleTable({
           ))}
         </tbody>
       </table>
-
-      <p className="sm:hidden mt-4 text-[11px] uppercase tracking-[0.14em] text-mute">
-        Age detail visible on larger screens.
-      </p>
     </div>
   );
 }
