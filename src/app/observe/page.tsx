@@ -22,9 +22,8 @@ export default function ObservePage() {
         </div>
         <div className="col-span-12 md:col-span-7">
           <p className="text-ink/75 text-lg leading-relaxed">
-            We don&apos;t offer trial lessons, but we&apos;d love for you to
-            come watch. Pick a class or two below and a coach will be ready
-            to talk with you about getting started.
+            Pick a class or two below and a coach will be ready to talk with
+            you about getting started.
           </p>
           <p className="text-ink/70 mt-4 leading-relaxed">
             Visits are free, and there&apos;s no commitment. Families and

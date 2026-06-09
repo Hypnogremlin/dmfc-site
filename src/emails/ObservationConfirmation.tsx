@@ -33,13 +33,6 @@ const WEAPON_TIMES: Record<Weapon, string> = {
   saber: "6:30 – 7:30 PM",
 };
 
-const WEAPON_COACHES: Record<Weapon, string[]> = {
-  "foil-youth": ["Abbey Freed", "Taryn Young"],
-  "foil-adult": ["Abbey Freed", "Josiah Janecek", "Jon Greising"],
-  epee: ["Jon Greising"],
-  saber: ["Preston Kirkpatrick", "Trevor Carra"],
-};
-
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 function formatDate(dateStr: string): string {
   const [year, month, day] = dateStr.split("-").map(Number);
@@ -126,12 +119,6 @@ const styles = {
     fontSize: "14px",
     color: "#555",
     margin: "2px 0",
-  },
-  coachLine: {
-    fontSize: "13px",
-    color: "#777",
-    margin: "6px 0 0",
-    fontStyle: "italic",
   },
   locationBox: {
     backgroundColor: "#f9f9f9",
@@ -224,23 +211,18 @@ export function ObservationConfirmation({
               {sessions.length === 1 ? "Your Session" : "Your Sessions"}
             </Text>
 
-            {sessions.map((s, i) => {
-              const coaches = WEAPON_COACHES[s.weapon];
-              return (
-                <div key={i} style={styles.sessionCard}>
-                  <Text style={styles.sessionDate}>{formatDate(s.date)}</Text>
-                  <Text style={styles.sessionMeta}>
-                    {WEAPON_LABELS[s.weapon]} &nbsp;&middot;&nbsp; {WEAPON_TIMES[s.weapon]}
-                  </Text>
-                  <Text style={styles.coachLine}>
-                    Coaches: {coaches.join(", ")}
-                  </Text>
-                  <Text style={styles.sessionMeta}>
-                    When you arrive, just look for {coaches[0]} — they&apos;ll get you sorted.
-                  </Text>
-                </div>
-              );
-            })}
+            {sessions.map((s, i) => (
+              <div key={i} style={styles.sessionCard}>
+                <Text style={styles.sessionDate}>{formatDate(s.date)}</Text>
+                <Text style={styles.sessionMeta}>
+                  {WEAPON_LABELS[s.weapon]} &nbsp;&middot;&nbsp; {WEAPON_TIMES[s.weapon]}
+                </Text>
+                <Text style={styles.sessionMeta}>
+                  When you arrive, just look for one of our coaches — they&apos;ll be happy
+                  to answer questions and help you find a seat.
+                </Text>
+              </div>
+            ))}
 
             <Text style={styles.infoText}>
               Coaches have been notified and will be expecting you.{" "}

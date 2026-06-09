@@ -47,6 +47,30 @@ export default function Home() {
         <StripRule className="mt-16" />
       </DarkSection>
 
+      {/* Observe CTA — compact band for first-time visitors */}
+      <section className="py-14 md:py-20 bg-bone border-b border-rule">
+        <Container>
+          <div className="flex flex-col md:flex-row md:items-center gap-8 md:gap-16">
+            <div className="md:flex-[2]">
+              <Eyebrow>New to fencing?</Eyebrow>
+              <h2 className="mt-3 text-[clamp(28px,3.5vw,44px)] leading-tight">
+                Come watch before you decide.
+              </h2>
+            </div>
+            <div className="md:flex-[3]">
+              <p className="text-mute text-lg leading-relaxed">
+                We welcome first-time visitors to any of our weekly classes — no gear, no experience, no pressure. Just come see what fencing looks like in person.
+              </p>
+              <div className="mt-6">
+                <Button as="link" href="/observe" variant="primary">
+                  Observe a Class
+                </Button>
+              </div>
+            </div>
+          </div>
+        </Container>
+      </section>
+
       {/* Mission — paper section with eyebrow + editorial H2 */}
       <Section>
         <div className="grid grid-cols-12 gap-6">
