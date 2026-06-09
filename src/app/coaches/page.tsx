@@ -4,31 +4,13 @@ import { DarkSection } from "@/components/DarkSection";
 import { Eyebrow } from "@/components/Eyebrow";
 import { StripRule } from "@/components/StripRule";
 import { CoachPortrait } from "@/components/CoachPortrait";
+import { type Coach, coaches } from "@/lib/coaches";
 
 export const metadata: Metadata = {
   title: "Coaches",
   description:
     "Meet the USFCA-certified coaches of the Des Moines Fencing Club, teaching foil, épée, and saber in central Iowa.",
 };
-
-type Coach = {
-  name: string;
-  role: string;
-  image?: string;
-  bio?: string;
-};
-
-// Ordered as they appear on the archived about_coaches.html page.
-const coaches: Coach[] = [
-  { name: "Jon Greising", role: "Foil & Épée", image: "/coaches/jon.jpg" },
-  { name: "Preston Kirkpatrick", role: "Saber", image: "/coaches/preston.jpg" },
-  { name: "Josiah Janecek", role: "Foil", image: "/coaches/josiah.jpg" },
-  { name: "Emilia Reis", role: "Saber", image: "/coaches/emilia.jpg" },
-  { name: "Abbey Freed", role: "Foil", image: "/coaches/abbey.jpg" },
-  { name: "Taryn Young", role: "Foil" },
-  { name: "Trevor Carra", role: "Saber" },
-  { name: "Levi Miller", role: "Saber" },
-];
 
 export default function CoachesPage() {
   return (

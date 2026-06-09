@@ -1,20 +1,17 @@
 "use client";
 
-import { useState, FormEvent } from "react";
+import { useState, useTransition, FormEvent } from "react";
 import {
   ObservationCalendar,
   type SessionSelection,
   type Weapon,
 } from "./ObservationCalendar";
-
-// Dummy (preview-only) /observe form. No submission wiring — submit shows
-// a confirmation state and does not store or send anything. Real
-// submission, Supabase write, Resend transactional email, and Vercel
-// Cron reminder all land in Steps 6–9 of PLAN.md.
+import { submitObservation } from "@/app/observe/actions";
 
 const WEAPON_LABELS: Record<Weapon, string> = {
-  foil: "Foil",
-  epee: "Épée",
+  "foil-youth": "Foil (Youth)",
+  "foil-adult": "Foil (Adult)",
+  epee: "\u00c9p\u00e9e",
   saber: "Saber",
 };
 
@@ -26,7 +23,7 @@ function formatSessionLong(s: SessionSelection): string {
     day: "numeric",
     timeZone: "UTC",
   });
-  return `${label} · ${WEAPON_LABELS[s.weapon]}`;
+  return `${label} \u00b7 ${WEAPON_LABELS[s.weapon]}`;
 }
 
 export function ObservationForm() {
@@ -39,6 +36,8 @@ export function ObservationForm() {
   const [notes, setNotes] = useState("");
   const [sessions, setSessions] = useState<SessionSelection[]>([]);
   const [submitted, setSubmitted] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [isPending, startTransition] = useTransition();
 
   function toggleSession(date: string, weapon: Weapon) {
     setSessions((prev) => {
@@ -60,22 +59,46 @@ export function ObservationForm() {
 
   function handleSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
-    setSubmitted(true);
+    setError(null);
+    startTransition(async () => {
+      if (role === "parent" && !childName.trim()) {
+        setError("Please enter your child's name.");
+        return;
+      }
+      if (sessions.length === 0) {
+        setError("Please select at least one session.");
+        return;
+      }
+      const result = await submitObservation({
+        name,
+        email,
+        phone,
+        role,
+        childName,
+        partySize: parseInt(partySize, 10) || 1,
+        notes,
+        sessions,
+      });
+      if (result.ok) {
+        setSubmitted(true);
+      } else {
+        setError(result.error);
+      }
+    });
   }
 
   if (submitted) {
     return (
       <div className="border-2 border-brass p-8 md:p-12 bg-paper">
         <div className="text-brass text-[10px] font-semibold uppercase tracking-[0.16em] mb-3">
-          Preview confirmation
+          You&apos;re confirmed
         </div>
         <h3 className="font-display text-3xl text-ink leading-tight">
-          Thank you, {name || "friend"}.
+          See you soon, {name || "friend"}.
         </h3>
         <p className="text-ink/75 mt-4 leading-relaxed">
-          This is a preview — your request has not been sent. In the real
-          version, you would receive a confirmation email with a calendar
-          invitation, and a coach would reach out before your visit.
+          Check your inbox &mdash; we sent a confirmation with your calendar invite.
+          A coach will be in touch before your visit.
         </p>
         {sessions.length > 0 && (
           <div className="mt-6">
@@ -89,13 +112,6 @@ export function ObservationForm() {
             </ul>
           </div>
         )}
-        <button
-          type="button"
-          onClick={() => setSubmitted(false)}
-          className="mt-8 text-sm font-semibold uppercase tracking-[0.08em] text-purple-700 underline-draw"
-        >
-          ← Edit your selection
-        </button>
       </div>
     );
   }
@@ -121,9 +137,10 @@ export function ObservationForm() {
         </div>
         {role === "parent" && (
           <div className="pt-2">
-            <Label htmlFor="childName">Child&apos;s name</Label>
+            <Label htmlFor="childName">Child&apos;s name <span aria-hidden="true" className="text-red-600">*</span></Label>
             <Input
               id="childName"
+              required
               value={childName}
               onChange={(e) => setChildName(e.target.value)}
               placeholder="Child's first name"
@@ -186,7 +203,7 @@ export function ObservationForm() {
       <fieldset className="space-y-4">
         <Legend>Pick the class or classes you&apos;d like to watch</Legend>
         <p className="text-ink/75 text-sm">
-          Choose one, two, or all — toggle the letter on a date to add or
+          Choose one, two, or all &mdash; toggle the letter on a date to add or
           remove that session.
         </p>
         <ObservationCalendar
@@ -216,14 +233,15 @@ export function ObservationForm() {
       <div className="pt-4">
         <button
           type="submit"
-          className="inline-flex items-center gap-2 px-6 py-3 text-sm font-semibold uppercase tracking-[0.08em] bg-brass text-ink hover:bg-[oklch(70%_0.17_75)] transition-colors rounded-[3px]"
+          disabled={isPending}
+          className="inline-flex items-center gap-2 px-6 py-3 text-sm font-semibold uppercase tracking-[0.08em] bg-brass text-ink hover:bg-[oklch(70%_0.17_75)] transition-colors rounded-[3px] disabled:opacity-50 disabled:cursor-not-allowed"
         >
-          Reserve my visit
-          <span aria-hidden="true">→</span>
+          {isPending ? "Sending…" : "Reserve my visit"}
+          {!isPending && <span aria-hidden="true">→</span>}
         </button>
-        <p className="text-xs text-mute mt-3">
-          Preview only — submissions are not stored or sent yet.
-        </p>
+        {error && (
+          <p className="text-red-700 text-sm mt-3">{error}</p>
+        )}
       </div>
     </form>
   );

@@ -10,10 +10,6 @@ export const metadata: Metadata = {
     "Reserve a visit to come watch a class at the Des Moines Fencing Club. Choose the weapons and dates that work for you.",
 };
 
-// Dummy (preview-only) /observe page. Form does not submit anywhere yet —
-// Steps 6–9 of PLAN.md add Supabase, Resend transactional email, .ics
-// confirmation, and the Vercel Cron reminder job.
-
 export default function ObservePage() {
   return (
     <Section>

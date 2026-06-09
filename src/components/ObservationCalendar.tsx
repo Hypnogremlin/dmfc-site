@@ -8,7 +8,7 @@ import { useState } from "react";
 // month is local state so navigating months doesn't disturb selections.
 // Weapon-day mapping matches /classes: Mon = Foil + Épée, Thu = Saber.
 
-export type Weapon = "foil" | "epee" | "saber";
+export type Weapon = "foil-youth" | "foil-adult" | "epee" | "saber";
 
 export interface SessionSelection {
   date: string; // YYYY-MM-DD
@@ -21,14 +21,16 @@ interface Props {
 }
 
 const WEAPON_LABELS: Record<Weapon, string> = {
-  foil: "Foil",
+  "foil-youth": "Foil (Youth)",
+  "foil-adult": "Foil (Adult)",
   epee: "Épée",
   saber: "Saber",
 };
 
-// Single-letter chip labels — keep cells compact.
+// Short chip labels — keep cells compact.
 const WEAPON_CHIPS: Record<Weapon, string> = {
-  foil: "F",
+  "foil-youth": "Fy",
+  "foil-adult": "Fa",
   epee: "E",
   saber: "S",
 };
@@ -39,7 +41,12 @@ const WEAPON_CLASSES: Record<
   Weapon,
   { selected: string; idle: string; ring: string }
 > = {
-  foil: {
+  "foil-youth": {
+    selected: "bg-brass text-ink border-brass",
+    idle: "bg-transparent text-brass border-brass/50 hover:bg-brass/15",
+    ring: "ring-brass",
+  },
+  "foil-adult": {
     selected: "bg-brass text-ink border-brass",
     idle: "bg-transparent text-brass border-brass/50 hover:bg-brass/15",
     ring: "ring-brass",
@@ -84,7 +91,7 @@ function buildMonthGrid(year: number, month: number) {
 
 function getAvailableWeapons(weekday: number): Weapon[] {
   // 1 = Monday, 4 = Thursday
-  if (weekday === 1) return ["foil", "epee"];
+  if (weekday === 1) return ["foil-youth", "foil-adult", "epee"];
   if (weekday === 4) return ["saber"];
   return [];
 }
@@ -133,7 +140,8 @@ export function ObservationCalendar({ selected, onToggle }: Props) {
           <NavButton direction="next" onClick={() => shiftMonth(1)} />
         </div>
         <div className="flex items-center gap-4 text-xs text-mute">
-          <LegendDot weapon="foil" />
+          <LegendDot weapon="foil-youth" />
+          <LegendDot weapon="foil-adult" />
           <LegendDot weapon="epee" />
           <LegendDot weapon="saber" />
         </div>
@@ -198,10 +206,11 @@ export function ObservationCalendar({ selected, onToggle }: Props) {
       </div>
 
       <p className="text-xs text-mute mt-3 leading-relaxed">
-        Click a letter to add or remove that class. Mondays offer{" "}
-        <strong className="text-ink">F</strong>oil and{" "}
-        <strong className="text-ink">É</strong>pée; Thursdays offer{" "}
-        <strong className="text-ink">S</strong>aber.
+        Click a chip to add or remove that session. Mondays:{" "}
+        <strong className="text-ink">Fy</strong> Foil Youth 6:30p ·{" "}
+        <strong className="text-ink">Fa</strong> Foil Adult 8:00p ·{" "}
+        <strong className="text-ink">E</strong> Épée 6:30p — Thursdays:{" "}
+        <strong className="text-ink">S</strong> Saber 6:30p
       </p>
     </div>
   );
