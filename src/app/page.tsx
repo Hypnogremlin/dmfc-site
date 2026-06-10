@@ -79,7 +79,7 @@ export default function Home() {
           </div>
           <div className="col-span-12 md:col-span-8">
             <h2 className="text-[clamp(36px,4vw,56px)]">
-              Teach and promote the three disciplines of Olympic fencing — foil, épée, and saber — for fencers of every age.
+              Teach and promote the three weapons of Olympic fencing — foil, épée, and saber — for fencers of every age.
             </h2>
             <p className="mt-6 text-mute text-lg max-w-2xl">
               From first-time visitors to national-level competitors, the Des Moines Fencing Club cultivates a community that challenges every athlete to pursue their best.
@@ -100,7 +100,7 @@ export default function Home() {
           {[
             { name: "Foil", body: "A light thrusting weapon. Torso only. Right-of-way decides the point." },
             { name: "Épée", body: "Heavier and unrestricted — the entire body is target. No right of way. The duelist's weapon." },
-            { name: "Saber", body: "A cutting and thrusting weapon. Everything above the waist. No time limit. Fast and aggressive." },
+            { name: "Saber", body: "A cutting and thrusting weapon. Everything above the waist, except the hands. No time limit. Fast and aggressive." },
           ].map((w) => (
             <Card key={w.name}>
               <Eyebrow>Weapon</Eyebrow>
