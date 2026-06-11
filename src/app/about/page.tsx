@@ -12,13 +12,14 @@ export const metadata: Metadata = {
 };
 
 const board = [
-  "Pat Kennedy",
-  "Jonathan Freed",
-  "Allison Orgeron",
-  "Jem GongBrowne",
-  "Joe Larson",
-  "Jeremy Orgeron",
-  "Mercedes Janecek",
+  { name: "Pat Kennedy",       role: "President" },
+  { name: "Jonathan Freed",    role: "Vice President" },
+  { name: "Jem Gong-Brown",    role: "Treasurer" },
+  { name: "Allison Orgeron",   role: "Secretary" },
+  { name: "Mercedes Janecek",  role: "At-Large" },
+  { name: "Joe Larson",        role: "Tournament Specialist" },
+  { name: "Jeremy Orgeron",    role: "At-Large" },
+  { name: "Kyle Happ",         role: "At-Large" },
 ];
 
 export default function AboutPage() {
@@ -105,7 +106,6 @@ export default function AboutPage() {
           </div>
           <div className="col-span-12 md:col-span-6 md:col-start-7 self-end">
             <p className="text-mute leading-relaxed">
-              {/* TODO: short bios / roles for each board member once owner supplies them. */}
               DMFC is governed by a volunteer board drawn from members and parents. They handle non-profit
               filings, scheduling, equipment, and the four annual tournaments the club hosts.
             </p>
@@ -113,17 +113,9 @@ export default function AboutPage() {
         </div>
 
         <ul className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-x-10 gap-y-2">
-          {board.map((name) => (
+          {board.map(({ name, role }) => (
             <li
               key={name}
-              className="border-t border-brass/30 pt-4 pb-2 font-display text-2xl md:text-[28px] leading-tight"
+              className="border-t border-brass/30 pt-4 pb-2"
             >
-              {name}
-              {/* TODO: per-board-member roles (President, Treasurer, etc.) once owner supplies them. */}
-            </li>
-          ))}
-        </ul>
-      </Section>
-    </>
-  );
-}
+              <span className="block font-displ

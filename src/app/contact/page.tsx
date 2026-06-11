@@ -64,9 +64,8 @@ export default function ContactPage() {
                 Find us online
               </dt>
               <dd className="mt-2 flex flex-wrap gap-x-6 gap-y-2 text-sm">
-                {/* TODO: Confirm canonical social URLs with owner (Facebook page + groups referenced in site-reference.md). */}
                 <a
-                  href="https://www.facebook.com/desmoinesfencingclub"
+                  href="https://www.facebook.com/DesMoinesFencingClub/"
                   target="_blank"
                   rel="noreferrer"
                   className="underline-draw text-ink hover:text-purple-700 transition-colors"
