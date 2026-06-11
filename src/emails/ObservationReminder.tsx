@@ -222,9 +222,8 @@ export function ObservationReminder({
               Just a quick reminder — your{" "}
               {multiSession ? `${sessions.length} sessions` : "observation"}
               {partySize > 1 ? ` (party of ${partySize})` : ""} {multiSession ? "are" : "is"} tomorrow.
-              If you&apos;ve been wondering what to expect, fencing is one of
-              those sports that genuinely has to be seen in person. You&apos;re
-              going to enjoy this.
+              Tomorrow you&apos;ll get to see those footwork patterns and blade
+              reads happen in real time. Our coaches are looking forward to it.
             </Text>
 
             {/* Session(s) */}
@@ -307,3 +306,4 @@ export function ObservationReminder({
 }
 
 export default ObservationReminder;
+                                 

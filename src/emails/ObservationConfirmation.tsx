@@ -199,10 +199,11 @@ export function ObservationConfirmation({
           <Section style={styles.body2}>
             <Text style={styles.greeting}>Hi {firstName}!</Text>
             <Text style={styles.intro}>
-              You&apos;re all set — and you&apos;re going to love watching this.
-              Fencing is one of those sports that has to be seen in person to be
-              fully appreciated, and our coaches are genuinely excited to have
-              you in. Below are the details for{" "}
+              You&apos;re confirmed — our coaches are looking forward to it. A
+              bout lasts about three minutes and packs in more strategy than it
+              looks like from the outside: footwork patterns, distance
+              management, blade reading. You&apos;ll start noticing the chess
+              match underneath the action. Below are the details for{" "}
               {sessions.length === 1 ? "your session" : "each of your sessions"}.
             </Text>
 
@@ -322,10 +323,4 @@ export function ObservationConfirmation({
               </Link>
             </Text>
           </Section>
-        </Container>
-      </Body>
-    </Html>
-  );
-}
-
-export default ObservationConfirmation;
+       
