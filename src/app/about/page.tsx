@@ -118,4 +118,12 @@ export default function AboutPage() {
               key={name}
               className="border-t border-brass/30 pt-4 pb-2"
             >
-              <span className="block font-displ
+              <span className="block font-display text-2xl md:text-[28px] leading-tight">{name}</span>
+              <span className="block mt-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-mute">{role}</span>
+            </li>
+          ))}
+        </ul>
+      </Section>
+    </>
+  );
+}
