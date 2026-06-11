@@ -10,9 +10,9 @@ import {
   Link,
   Preview,
 } from "@react-email/components";
-import type { SessionSelection, Weapon } from "@/components/ObservationCalendar";
+import type { Weapon } from "@/components/ObservationCalendar";
 
-// ─── Subject line (imported by server action) ─────────────────────────────────
+// ─── Subject line (imported by cron route) ────────────────────────────────────
 export const subject = (firstName: string) =>
   `See you tomorrow, ${firstName} — your Des Moines Fencing Club visit`;
 
@@ -109,18 +109,31 @@ const styles = {
     color: BRASS,
     margin: "0 0 12px",
   },
+  dateHeading: {
+    fontSize: "18px",
+    fontWeight: "700",
+    color: PURPLE,
+    margin: "0 0 16px",
+  },
   sessionCard: {
     backgroundColor: "#f9f6fc",
     border: `1px solid #e8d9f0`,
     borderRadius: "4px",
-    padding: "18px 22px",
+    padding: "14px 18px",
+    marginBottom: "10px",
+  },
+  sessionCardLast: {
+    backgroundColor: "#f9f6fc",
+    border: `1px solid #e8d9f0`,
+    borderRadius: "4px",
+    padding: "14px 18px",
     marginBottom: "24px",
   },
-  sessionDate: {
-    fontSize: "18px",
+  sessionWeapon: {
+    fontSize: "15px",
     fontWeight: "700",
-    color: PURPLE,
-    margin: "0 0 4px",
+    color: "#1a1a1a",
+    margin: "0 0 3px",
   },
   sessionMeta: {
     fontSize: "14px",
@@ -166,19 +179,27 @@ const styles = {
 };
 
 // ─── Props ───────────────────────────────────────────────────────────────────
+export interface ReminderSession {
+  date: string;   // YYYY-MM-DD — all sessions in a reminder share the same date
+  weapon: Weapon;
+}
+
 export interface ObservationReminderProps {
   visitorName: string;
-  session: SessionSelection;
+  sessions: ReminderSession[];
   partySize: number;
 }
 
 // ─── Component ───────────────────────────────────────────────────────────────
 export function ObservationReminder({
   visitorName,
-  session,
+  sessions,
   partySize,
 }: ObservationReminderProps) {
   const firstName = visitorName.split(" ")[0];
+  // All sessions share the same date — use the first for display
+  const visitDate = sessions[0]?.date ?? "";
+  const multiSession = sessions.length > 1;
 
   return (
     <Html lang="en">
@@ -198,24 +219,32 @@ export function ObservationReminder({
           <Section style={styles.body2}>
             <Text style={styles.greeting}>Hey {firstName}!</Text>
             <Text style={styles.intro}>
-              Just a quick reminder — your observation{" "}
-              {partySize > 1 ? `(party of ${partySize}) ` : ""}is tomorrow.
+              Just a quick reminder — your{" "}
+              {multiSession ? `${sessions.length} sessions` : "observation"}
+              {partySize > 1 ? ` (party of ${partySize})` : ""} {multiSession ? "are" : "is"} tomorrow.
               If you&apos;ve been wondering what to expect, fencing is one of
               those sports that genuinely has to be seen in person. You&apos;re
               going to enjoy this.
             </Text>
 
-            {/* Session details */}
-            <Text style={styles.sectionLabel}>Session Details</Text>
-            <div style={styles.sessionCard}>
-              <Text style={styles.sessionDate}>{formatDate(session.date)}</Text>
-              <Text style={styles.sessionMeta}>
-                {WEAPON_LABELS[session.weapon]} &nbsp;&middot;&nbsp; {WEAPON_TIMES[session.weapon]}
-              </Text>
-              <Text style={styles.sessionMeta}>
-                Look for {WEAPON_FIRST_COACH[session.weapon]} when you arrive — they&apos;ll get you sorted.
-              </Text>
-            </div>
+            {/* Session(s) */}
+            <Text style={styles.sectionLabel}>
+              {multiSession ? "Your Sessions" : "Session Details"}
+            </Text>
+            <Text style={styles.dateHeading}>{formatDate(visitDate)}</Text>
+
+            {sessions.map((session, i) => (
+              <div
+                key={i}
+                style={i < sessions.length - 1 ? styles.sessionCard : styles.sessionCardLast}
+              >
+                <Text style={styles.sessionWeapon}>{WEAPON_LABELS[session.weapon]}</Text>
+                <Text style={styles.sessionMeta}>{WEAPON_TIMES[session.weapon]}</Text>
+                <Text style={styles.sessionMeta}>
+                  Look for {WEAPON_FIRST_COACH[session.weapon]} when you arrive — they&apos;ll get you sorted.
+                </Text>
+              </div>
+            ))}
 
             {/* Location */}
             <Text style={styles.sectionLabel}>Where to Go</Text>
