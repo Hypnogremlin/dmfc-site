@@ -306,4 +306,3 @@ export function ObservationReminder({
 }
 
 export default ObservationReminder;
-                                 
