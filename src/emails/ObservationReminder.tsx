@@ -222,8 +222,8 @@ export function ObservationReminder({
               Just a quick reminder — your{" "}
               {multiSession ? `${sessions.length} sessions` : "observation"}
               {partySize > 1 ? ` (party of ${partySize})` : ""} {multiSession ? "are" : "is"} tomorrow.
-              Tomorrow you&apos;ll get to see those footwork patterns and blade
-              reads happen in real time. Our coaches are looking forward to it.
+              Come ready to watch the footwork patterns and blade reads happen
+              in real time. Our coaches are looking forward to it.
             </Text>
 
             {/* Session(s) */}
