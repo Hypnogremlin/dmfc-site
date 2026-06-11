@@ -21,10 +21,10 @@ interface Props {
 }
 
 const WEAPON_LABELS: Record<Weapon, string> = {
-  "foil-youth": "Foil (Youth)",
-  "foil-adult": "Foil (Adult)",
-  epee: "Épée",
-  saber: "Saber",
+  "foil-youth": "Foil Youth · 6:30p",
+  "foil-adult": "Foil Adult · 8:00p",
+  epee: "Épée · 6:30p",
+  saber: "Saber · 6:30p",
 };
 
 // Short chip labels — keep cells compact.
@@ -47,9 +47,9 @@ const WEAPON_CLASSES: Record<
     ring: "ring-brass",
   },
   "foil-adult": {
-    selected: "bg-brass text-ink border-brass",
-    idle: "bg-transparent text-brass border-brass/50 hover:bg-brass/15",
-    ring: "ring-brass",
+    selected: "bg-orange-500 text-white border-orange-500",
+    idle: "bg-transparent text-orange-500 border-orange-500/50 hover:bg-orange-500/15",
+    ring: "ring-orange-500",
   },
   epee: {
     selected: "bg-purple-700 text-paper border-purple-700",
