@@ -51,43 +51,47 @@ export async function submitMembershipForm(
   }
 
   // 2. Upsert emergency contacts
+  const ecRows = [
+    {
+      profile_id: user.id,
+      contact_order: 1,
+      last_name: data.ec1_last_name,
+      first_name: data.ec1_first_name,
+      relationship: data.ec1_relationship,
+      email: data.ec1_email || null,
+      phone: data.ec1_phone,
+      address_line1: data.ec1_address_line1 || null,
+      address_line2: data.ec1_address_line2 || null,
+      city: data.ec1_city || null,
+      state: data.ec1_state || null,
+      zip_code: data.ec1_zip_code || null,
+    },
+    // Only include EC2 if the required fields are filled in
+    ...(data.ec2_last_name.trim() && data.ec2_first_name.trim() && data.ec2_phone.trim()
+      ? [
+          {
+            profile_id: user.id,
+            contact_order: 2,
+            last_name: data.ec2_last_name,
+            first_name: data.ec2_first_name,
+            relationship: data.ec2_relationship,
+            email: data.ec2_email || null,
+            email_2: data.ec2_email_2 || null,
+            phone: data.ec2_phone,
+            phone_2: data.ec2_phone_2 || null,
+            address_line1: data.ec2_address_line1 || null,
+            address_line2: data.ec2_address_line2 || null,
+            city: data.ec2_city || null,
+            state: data.ec2_state || null,
+            zip_code: data.ec2_zip_code || null,
+          },
+        ]
+      : []),
+  ];
+
   const { error: ecError } = await supabase
     .from("emergency_contacts")
-    .upsert(
-      [
-        {
-          profile_id: user.id,
-          contact_order: 1,
-          last_name: data.ec1_last_name,
-          first_name: data.ec1_first_name,
-          relationship: data.ec1_relationship,
-          email: data.ec1_email || null,
-          phone: data.ec1_phone,
-          address_line1: data.ec1_address_line1 || null,
-          address_line2: data.ec1_address_line2 || null,
-          city: data.ec1_city || null,
-          state: data.ec1_state || null,
-          zip_code: data.ec1_zip_code || null,
-        },
-        {
-          profile_id: user.id,
-          contact_order: 2,
-          last_name: data.ec2_last_name,
-          first_name: data.ec2_first_name,
-          relationship: data.ec2_relationship,
-          email: data.ec2_email || null,
-          email_2: data.ec2_email_2 || null,
-          phone: data.ec2_phone,
-          phone_2: data.ec2_phone_2 || null,
-          address_line1: data.ec2_address_line1 || null,
-          address_line2: data.ec2_address_line2 || null,
-          city: data.ec2_city || null,
-          state: data.ec2_state || null,
-          zip_code: data.ec2_zip_code || null,
-        },
-      ],
-      { onConflict: "profile_id,contact_order" }
-    );
+    .upsert(ecRows, { onConflict: "profile_id,contact_order" });
 
   if (ecError) {
     return { ok: false, error: ecError.message };

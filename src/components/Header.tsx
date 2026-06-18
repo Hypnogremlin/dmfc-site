@@ -14,8 +14,6 @@ const navItems = [
   { href: "/contact", label: "Contact" },
 ];
 
-const memberNavItem = { href: "/login", label: "Member Login" };
-
 export function Header() {
   return (
     <header className="relative border-b border-rule bg-paper">
@@ -46,12 +44,6 @@ export function Header() {
               {item.label}
             </NavLink>
           ))}
-          <NavLink
-            href={memberNavItem.href}
-            className="border border-rule px-3 py-1.5 rounded-[3px] hover:border-brass transition-colors"
-          >
-            {memberNavItem.label}
-          </NavLink>
           <Button as="link" href="/observe" variant="primary">
             Observe a Class
           </Button>
@@ -61,7 +53,7 @@ export function Header() {
           <Button as="link" href="/observe" variant="primary">
             Observe
           </Button>
-          <MobileMenu items={[...navItems, memberNavItem]} />
+          <MobileMenu items={navItems} />
         </div>
       </Container>
     </header>
