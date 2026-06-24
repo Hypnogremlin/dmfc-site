@@ -98,7 +98,6 @@ export function ObservationForm() {
         </h3>
         <p className="text-ink/75 mt-4 leading-relaxed">
           Check your inbox &mdash; we sent a confirmation with your calendar invite.
-          A coach will be in touch before your visit.
         </p>
         {sessions.length > 0 && (
           <div className="mt-6">

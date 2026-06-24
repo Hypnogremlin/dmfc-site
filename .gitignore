@@ -49,3 +49,9 @@ DESIGN.md
 site-reference.md
 .claude/
 
+# working reference docs — kept local, not for the public repo
+# (their content is migrated into source where needed)
+*.xlsx
+~$*
+releases document.txt
+

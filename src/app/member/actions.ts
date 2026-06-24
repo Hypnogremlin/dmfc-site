@@ -40,6 +40,10 @@ export async function submitMembershipForm(
       city: data.city,
       state: data.state,
       zip_code: data.zip_code,
+      guardian_first_name: data.guardian_first_name || null,
+      guardian_last_name: data.guardian_last_name || null,
+      guardian_relationship: data.guardian_relationship || null,
+      guardian_phone: data.guardian_phone || null,
       membership_season: MEMBERSHIP_SEASON,
       enrollment_complete: true,
     },
@@ -114,6 +118,9 @@ export async function submitMembershipForm(
   }
 
   // 4. Upsert member_waivers
+  // Signer is derived from athlete age in the form. *_signed_at is stamped
+  // only for signatures that were actually provided (guardian fields stay
+  // null for adult athletes).
   const now = new Date().toISOString();
   const { error: waiverError } = await supabase
     .from("member_waivers")
@@ -121,14 +128,29 @@ export async function submitMembershipForm(
       {
         profile_id: user.id,
         season_year: MEMBERSHIP_SEASON,
-        dmfc_rules_agreed: data.dmfc_rules_agreed,
-        dmfc_rules_signature: data.dmfc_rules_signature || null,
-        dmfc_rules_signed_at: now,
-        dmfc_rules_signer_type: data.dmfc_rules_signer_type || null,
-        usa_fencing_agreed: data.usa_fencing_agreed,
-        usa_fencing_signature: data.usa_fencing_signature || null,
-        usa_fencing_signed_at: now,
-        usa_fencing_signer_type: data.usa_fencing_signer_type || null,
+        // 1. Rules of the Club
+        rules_club_athlete_agreed: data.rules_club_athlete_agreed,
+        rules_club_athlete_signature: data.rules_club_athlete_signature || null,
+        rules_club_athlete_signed_at: data.rules_club_athlete_signature ? now : null,
+        rules_club_guardian_agreed: data.rules_club_guardian_agreed,
+        rules_club_guardian_signature: data.rules_club_guardian_signature || null,
+        rules_club_guardian_signed_at: data.rules_club_guardian_signature ? now : null,
+        // 2. Athlete Code of Conduct
+        athlete_coc_agreed: data.athlete_coc_agreed,
+        athlete_coc_signature: data.athlete_coc_signature || null,
+        athlete_coc_signed_at: data.athlete_coc_signature ? now : null,
+        // 3. Parent Code of Conduct (minors only)
+        parent_coc_agreed: data.parent_coc_agreed,
+        parent_coc_signature: data.parent_coc_signature || null,
+        parent_coc_signed_at: data.parent_coc_signature ? now : null,
+        // 4. Individual Membership Waiver
+        individual_waiver_agreed: data.individual_waiver_agreed,
+        individual_waiver_signature: data.individual_waiver_signature || null,
+        individual_waiver_signed_at: data.individual_waiver_signature ? now : null,
+        // 5. MAAPP Waiver
+        maapp_agreed: data.maapp_agreed,
+        maapp_signature: data.maapp_signature || null,
+        maapp_signed_at: data.maapp_signature ? now : null,
       },
       { onConflict: "profile_id,season_year" }
     );

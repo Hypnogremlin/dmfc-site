@@ -323,4 +323,10 @@ export function ObservationConfirmation({
               </Link>
             </Text>
           </Section>
-       
+        </Container>
+      </Body>
+    </Html>
+  );
+}
+
+export default ObservationConfirmation;
