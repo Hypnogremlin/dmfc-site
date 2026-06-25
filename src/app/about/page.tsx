@@ -86,7 +86,7 @@ export default function AboutPage() {
               Members of the DMFC compete in local and out-of-state tournaments and perform demonstrations across the Des Moines metro for schools, community groups, and other organizations curious about the sport.
             </p>
             <p className="mt-5 text-bone/70 text-lg leading-relaxed">
-              These outreach efforts are run entirely by volunteers who donate their time — sometimes their vacation days — to spread the word about fencing. Our typical 60-minute classes are led by USFCA-certified coaches and built around warm-ups, footwork, blade work, and bouting.
+              These outreach efforts are run entirely by volunteers who donate their time — sometimes their vacation days — to spread the word about fencing. Our typical 60-minute classes are led by USFA-certified coaches and built around warm-ups, footwork, blade work, and bouting.
             </p>
           </div>
         </div>

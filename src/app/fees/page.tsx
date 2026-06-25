@@ -40,7 +40,7 @@ const tiers: Tier[] = [
     blurb: "The full member experience — base membership plus coached weapon classes.",
     includes: [
       "Everything in Base Membership",
-      "60-minute weapon classes with USFCA-certified coaches",
+      "60-minute weapon classes with USFA-certified coaches",
       "Eligible for individual coach lessons (priced by coach)",
     ],
     emphasis: true,

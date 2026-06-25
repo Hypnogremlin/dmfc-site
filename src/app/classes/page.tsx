@@ -10,7 +10,7 @@ import { FeatureImage } from "@/components/FeatureImage";
 export const metadata: Metadata = {
   title: "Classes",
   description:
-    "Weekly fencing classes in foil, épée, and saber at the Des Moines Fencing Club — taught by USFCA-certified coaches.",
+    "Weekly fencing classes in foil, épée, and saber at the Des Moines Fencing Club — taught by USFA-certified coaches.",
 };
 
 const foilSchedule: ScheduleRow[] = [
@@ -45,7 +45,7 @@ export default function ClassesPage() {
             </h1>
             <p className="mt-8 text-lg leading-relaxed text-ink">
               Mondays cover foil and épée. Thursdays are saber. Each 60-minute class is led by a
-              USFCA-certified coach and built around warm-ups, footwork, blade work, and bouting —
+              USFA-certified coach and built around warm-ups, footwork, blade work, and bouting —
               with games and drills throughout to keep it fun.
             </p>
             <p className="mt-5 text-mute leading-relaxed">
