@@ -13,7 +13,7 @@ export function Footer() {
         aria-hidden="true"
         width={720}
         height={720}
-        className="pointer-events-none select-none absolute -right-24 -bottom-24 w-[420px] md:w-[560px] opacity-[0.06]"
+        className="pointer-events-none select-none absolute left-1/2 -translate-x-1/2 -bottom-24 w-[420px] md:w-[560px] opacity-[0.06]"
       />
       <Container className="relative py-20">
         <StripRule className="mb-12" />

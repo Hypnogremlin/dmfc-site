@@ -4,6 +4,7 @@ import { Section } from "@/components/Section";
 import { Eyebrow } from "@/components/Eyebrow";
 import { StripRule } from "@/components/StripRule";
 import { NewsTypeBadge } from "@/components/NewsTypeBadge";
+import { FeatureImage } from "@/components/FeatureImage";
 import { getAllEntries, formatDateLong } from "@/lib/news";
 
 export const metadata: Metadata = {
@@ -17,14 +18,24 @@ export default function NewsIndexPage() {
 
   return (
     <Section>
-      <div className="max-w-3xl">
-        <Eyebrow>From the club</Eyebrow>
-        <h1 className="text-5xl md:text-6xl mt-3">News &amp; Tournaments</h1>
-        <p className="text-ink/75 text-lg mt-5 leading-relaxed">
-          Club announcements, schedule changes, and information on our four
-          annual tournaments. Tournament entries are tagged so you can spot
-          them in the list below.
-        </p>
+      <div className="grid grid-cols-12 gap-6 items-center">
+        <div className="col-span-12 md:col-span-7">
+          <Eyebrow>From the club</Eyebrow>
+          <h1 className="text-5xl md:text-6xl mt-3">News &amp; Tournaments</h1>
+          <p className="text-ink/75 text-lg mt-5 leading-relaxed">
+            Club announcements, schedule changes, and information on our four
+            annual tournaments. Tournament entries are tagged so you can spot
+            them in the list below.
+          </p>
+        </div>
+        <div className="col-span-12 md:col-span-5 md:col-start-8 mt-8 md:mt-0">
+          <FeatureImage
+            src="/img/news.jpg"
+            alt="A club fencer receiving a tournament medal"
+            priority
+            aspect="aspect-[4/3]"
+          />
+        </div>
       </div>
 
       <StripRule className="mt-12 mb-12" />

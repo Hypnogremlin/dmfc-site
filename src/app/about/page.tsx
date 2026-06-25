@@ -4,6 +4,7 @@ import { DarkSection } from "@/components/DarkSection";
 import { Eyebrow } from "@/components/Eyebrow";
 import { StripRule } from "@/components/StripRule";
 import { StatBlock } from "@/components/StatBlock";
+import { FeatureImage } from "@/components/FeatureImage";
 
 export const metadata: Metadata = {
   title: "About",
@@ -28,22 +29,28 @@ export default function AboutPage() {
   return (
     <>
       <Section>
-        <div className="grid grid-cols-12 gap-6">
-          <div className="col-span-12 md:col-span-5">
+        <div className="grid grid-cols-12 gap-6 items-center">
+          <div className="col-span-12 md:col-span-6">
             <Eyebrow>About the Club</Eyebrow>
             <h1 className="mt-6 text-[clamp(48px,7vw,96px)] leading-[1.0]">
               Six fencers.
               <br />
               <span className="italic">A foundation.</span>
             </h1>
-          </div>
-          <div className="col-span-12 md:col-span-6 md:col-start-7 self-end">
-            <p className="text-lg leading-relaxed text-ink">
+            <p className="mt-8 text-lg leading-relaxed text-ink">
               Founded in June of 1997 by six people with various levels of fencing knowledge, the Des Moines Fencing Club was soon joined by other experienced fencers and many enthusiastic students. In 1999, the DMFC achieved Iowa non-profit organization status.
             </p>
             <p className="mt-5 text-lg leading-relaxed text-mute">
               The public is always welcome to come and observe and participate in DMFC practices.
             </p>
+          </div>
+          <div className="col-span-12 md:col-span-5 md:col-start-8 mt-10 md:mt-0">
+            <FeatureImage
+              src="/img/about.jpg"
+              alt="Foils resting tip-up in their cases before practice"
+              priority
+              aspect="aspect-[3/2]"
+            />
           </div>
         </div>
         <StripRule className="mt-20" />

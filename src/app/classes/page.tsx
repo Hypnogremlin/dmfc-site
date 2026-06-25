@@ -5,6 +5,7 @@ import { Eyebrow } from "@/components/Eyebrow";
 import { StripRule } from "@/components/StripRule";
 import { ScheduleTable, type ScheduleRow } from "@/components/ScheduleTable";
 import { WeaponCard } from "@/components/WeaponCard";
+import { FeatureImage } from "@/components/FeatureImage";
 
 export const metadata: Metadata = {
   title: "Classes",
@@ -34,17 +35,15 @@ export default function ClassesPage() {
   return (
     <>
       <Section>
-        <div className="grid grid-cols-12 gap-6">
-          <div className="col-span-12 md:col-span-5">
+        <div className="grid grid-cols-12 gap-6 items-center">
+          <div className="col-span-12 md:col-span-7">
             <Eyebrow>Weekly Classes</Eyebrow>
             <h1 className="mt-6 text-[clamp(48px,7vw,96px)] leading-[1.0]">
               Two nights.
               <br />
               <span className="italic">Three weapons.</span>
             </h1>
-          </div>
-          <div className="col-span-12 md:col-span-6 md:col-start-7 self-end">
-            <p className="text-lg leading-relaxed text-ink">
+            <p className="mt-8 text-lg leading-relaxed text-ink">
               Mondays cover foil and épée. Thursdays are saber. Each 60-minute class is led by a
               USFCA-certified coach and built around warm-ups, footwork, blade work, and bouting —
               with games and drills throughout to keep it fun.
@@ -56,6 +55,14 @@ export default function ClassesPage() {
               </a>
               .
             </p>
+          </div>
+          <div className="col-span-12 md:col-span-4 md:col-start-9 mt-10 md:mt-0">
+            <FeatureImage
+              src="/img/classes.jpg"
+              alt="Fencers drilling footwork and blade work during a club class"
+              priority
+              aspect="aspect-[3/4]"
+            />
           </div>
         </div>
         <StripRule className="mt-20" />

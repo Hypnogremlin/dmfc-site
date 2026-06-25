@@ -1,3 +1,4 @@
+import Image from "next/image";
 import { DarkSection } from "@/components/DarkSection";
 import { Section } from "@/components/Section";
 import { Container } from "@/components/Container";
@@ -7,6 +8,7 @@ import { Button } from "@/components/Button";
 import { Card } from "@/components/Card";
 import { NextTournamentCard } from "@/components/NextTournamentCard";
 import { NewsTeaser } from "@/components/NewsTeaser";
+import { FeatureImage } from "@/components/FeatureImage";
 import { getUpcomingTournaments, getRecentNews } from "@/lib/news";
 
 export default function Home() {
@@ -19,32 +21,43 @@ export default function Home() {
 
   return (
     <>
-      {/* Hero — full-bleed dark section, oversized Fraunces, brass rule */}
-      <DarkSection className="relative overflow-hidden">
-        <div className="grid grid-cols-12 gap-6 items-center min-h-[60vh]">
-          <div className="col-span-12 lg:col-span-8">
-            <Eyebrow className="text-brass">Est. 1997 · Des Moines, Iowa</Eyebrow>
-            <h1 className="mt-6 text-bone text-[clamp(56px,8vw,120px)] leading-[0.95]">
-              The art of
-              <br />
-              fencing,
-              <br />
-              <span className="italic">in central Iowa.</span>
-            </h1>
-            <div className="mt-10 flex flex-wrap items-center gap-6">
-              <Button as="link" href="/observe" variant="primary">
-                Observe a Class
-              </Button>
-              <a
-                href="/classes"
-                className="underline-draw text-bone text-sm font-medium tracking-wide uppercase"
-              >
-                Or learn the weapons
-              </a>
+      {/* Hero — full-bleed dark section with faded photo backdrop */}
+      <DarkSection bare className="relative overflow-hidden">
+        <Image
+          src="/img/Homepage1.jpg"
+          alt=""
+          aria-hidden="true"
+          fill
+          priority
+          sizes="100vw"
+          className="pointer-events-none select-none object-cover object-center opacity-20 [filter:grayscale(100%)_contrast(1.05)]"
+        />
+        <Container className="relative z-10">
+          <div className="grid grid-cols-12 gap-6 items-center min-h-[60vh]">
+            <div className="col-span-12 lg:col-span-8">
+              <Eyebrow className="text-brass">Est. 1997 · Des Moines, Iowa</Eyebrow>
+              <h1 className="mt-6 text-bone text-[clamp(56px,8vw,120px)] leading-[0.95]">
+                The art of
+                <br />
+                fencing,
+                <br />
+                <span className="italic">in central Iowa.</span>
+              </h1>
+              <div className="mt-10 flex flex-wrap items-center gap-6">
+                <Button as="link" href="/observe" variant="primary">
+                  Observe a Class
+                </Button>
+                <a
+                  href="/classes"
+                  className="underline-draw text-bone text-sm font-medium tracking-wide uppercase"
+                >
+                  Or learn the weapons
+                </a>
+              </div>
             </div>
           </div>
-        </div>
-        <StripRule className="mt-16" />
+          <StripRule className="mt-16" />
+        </Container>
       </DarkSection>
 
       {/* Observe CTA — compact band for first-time visitors */}
@@ -76,6 +89,12 @@ export default function Home() {
         <div className="grid grid-cols-12 gap-6">
           <div className="col-span-12 md:col-span-4">
             <Eyebrow>Our mission</Eyebrow>
+            <FeatureImage
+              src="/img/Homepage2.jpg"
+              alt="Two young club fencers facing off in their whites as members look on"
+              aspect="aspect-[3/2]"
+              className="mt-8"
+            />
           </div>
           <div className="col-span-12 md:col-span-8">
             <h2 className="text-[clamp(36px,4vw,56px)]">
