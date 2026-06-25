@@ -7,14 +7,17 @@ type Props = {
   error?: string;
   children: ReactNode;
   htmlFor?: string;
+  /** Override the label color/styling (e.g. on dark backgrounds). Appended after
+   *  the defaults, so use Tailwind's `!` modifier to win over the base `text-ink`. */
+  labelClassName?: string;
 };
 
-export function FormField({ label, required, hint, error, children, htmlFor }: Props) {
+export function FormField({ label, required, hint, error, children, htmlFor, labelClassName = "" }: Props) {
   return (
     <div className="flex flex-col gap-1">
       <label
         htmlFor={htmlFor}
-        className="text-xs font-semibold uppercase tracking-[0.12em] text-ink"
+        className={`text-xs font-semibold uppercase tracking-[0.12em] text-ink ${labelClassName}`}
       >
         {label}
         {required && (

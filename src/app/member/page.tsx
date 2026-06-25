@@ -30,7 +30,14 @@ function formatSeason(season: string | null): string {
   return season.replace("-", "–");
 }
 
-const portalLinks = [
+type PortalLink = {
+  href: string;
+  label: string;
+  description: string;
+  comingSoon?: boolean;
+};
+
+const portalLinks: PortalLink[] = [
   {
     href: "/classes",
     label: "Class schedule",
@@ -42,9 +49,10 @@ const portalLinks = [
     description: "Announcements, tournament results, and updates.",
   },
   {
-    href: "/member/enroll",
+    href: "#",
     label: "Update your information",
-    description: "Edit your membership details or renew for the coming season.",
+    description: "Edit your membership details and contact info.",
+    comingSoon: true,
   },
 ];
 
@@ -122,29 +130,45 @@ export default async function MemberDashboardPage() {
           Member portal
         </h2>
         <ul className="space-y-0 divide-y divide-rule">
-          {portalLinks.map((item) => (
-            <li key={item.href}>
-              <Link
-                href={item.href}
-                className="group flex items-start justify-between gap-6 py-5 hover:text-purple-700 transition-colors"
-              >
-                <div>
-                  <p className="font-semibold text-ink group-hover:text-purple-700 transition-colors">
-                    {item.label}
-                  </p>
-                  <p className="text-sm text-mute mt-0.5 leading-relaxed">
-                    {item.description}
-                  </p>
+          {portalLinks.map((item) =>
+            item.comingSoon ? (
+              <li key={item.label}>
+                <div className="flex items-start justify-between gap-6 py-5">
+                  <div>
+                    <p className="font-semibold text-mute">{item.label}</p>
+                    <p className="text-sm text-mute mt-0.5 leading-relaxed">
+                      {item.description}
+                    </p>
+                  </div>
+                  <span className="inline-flex items-center px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.1em] border border-rule text-mute rounded-[2px] mt-0.5 flex-shrink-0 whitespace-nowrap">
+                    Coming Soon
+                  </span>
                 </div>
-                <span
-                  aria-hidden="true"
-                  className="text-brass mt-0.5 flex-shrink-0 text-lg"
+              </li>
+            ) : (
+              <li key={item.href}>
+                <Link
+                  href={item.href}
+                  className="group flex items-start justify-between gap-6 py-5 hover:text-purple-700 transition-colors"
                 >
-                  &#8594;
-                </span>
-              </Link>
-            </li>
-          ))}
+                  <div>
+                    <p className="font-semibold text-ink group-hover:text-purple-700 transition-colors">
+                      {item.label}
+                    </p>
+                    <p className="text-sm text-mute mt-0.5 leading-relaxed">
+                      {item.description}
+                    </p>
+                  </div>
+                  <span
+                    aria-hidden="true"
+                    className="text-brass mt-0.5 flex-shrink-0 text-lg"
+                  >
+                    &#8594;
+                  </span>
+                </Link>
+              </li>
+            )
+          )}
         </ul>
       </div>
 

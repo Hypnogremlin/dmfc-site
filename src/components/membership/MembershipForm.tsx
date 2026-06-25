@@ -639,6 +639,7 @@ function WaiverBlock({
             error={s.signatureError}
             hint="Type your full legal name"
             htmlFor={`${s.fieldKey}_signature`}
+            labelClassName="!text-brass"
           >
             <input
               id={`${s.fieldKey}_signature`}
@@ -1459,7 +1460,7 @@ export function MembershipForm({ userEmail, onSubmit }: Props) {
             )}
 
             <div className="flex items-center justify-between gap-4 mt-8">
-              <Button variant="secondary" arrow="left" type="button" onClick={handleBack} disabled={submitting} className="border-bone/30 text-bone hover:bg-bone hover:text-ink">
+              <Button variant="secondary" arrow="left" type="button" onClick={handleBack} disabled={submitting} className="!border-brass/40 !text-brass hover:!bg-brass hover:!text-ink">
                 Back
               </Button>
               <Button type="button" onClick={handleNext} disabled={submitting}>
