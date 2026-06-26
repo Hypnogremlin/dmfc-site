@@ -14,8 +14,8 @@ export const metadata: Metadata = {
 };
 
 const foilSchedule: ScheduleRow[] = [
-  { segment: "Youth Class", ageGroup: "Youth (ages 8–11)", day: "Monday", time: "6:30 – 7:30p" },
-  { segment: "Adult Class", ageGroup: "Adult (ages 12 & up)", day: "Monday", time: "8:00 – 9:00p" },
+  { segment: "Youth Class", ageGroup: "Youth (ages 8–12)", day: "Monday", time: "6:30 – 7:30p" },
+  { segment: "Adult Class", ageGroup: "Adult (ages 13 & up)", day: "Monday", time: "8:00 – 9:00p" },
 ];
 
 const epeeSchedule: ScheduleRow[] = [

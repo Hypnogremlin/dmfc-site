@@ -145,9 +145,9 @@ export default function Home() {
           <div className="col-span-12 md:col-span-8">
             <div className="border-t border-rule">
               {[
-                ["Monday", "Foil", "6:30–7:30p · Youth class · ages 8–11"],
+                ["Monday", "Foil", "6:30–7:30p · Youth class · ages 8–12"],
                 ["Monday", "Épée", "6:30–7:30p · Adult class"],
-                ["Monday", "Foil", "8:00–9:00p · Adult class · ages 12 & up"],
+                ["Monday", "Foil", "8:00–9:00p · Adult class · ages 13 & up"],
                 ["Monday", "Open Bouting", "9:00–10:00p · All weapons"],
                 ["Thursday", "Saber", "6:30–7:30p · Class"],
                 ["Thursday", "Open Bouting", "8:00–9:00p · All weapons"],
