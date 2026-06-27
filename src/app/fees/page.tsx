@@ -4,7 +4,6 @@ import { DarkSection } from "@/components/DarkSection";
 import { Eyebrow } from "@/components/Eyebrow";
 import { StripRule } from "@/components/StripRule";
 import { Card } from "@/components/Card";
-import { FeatureImage } from "@/components/FeatureImage";
 
 export const metadata: Metadata = {
   title: "Fees",
@@ -86,35 +85,25 @@ export default function FeesPage() {
   return (
     <>
       <Section>
-        <div className="grid grid-cols-12 gap-6 items-center">
-          <div className="col-span-12 md:col-span-7">
-            <Eyebrow>Membership &amp; fees</Eyebrow>
-            <h1 className="mt-6 text-[clamp(48px,7vw,96px)] leading-[1.0]">
-              What it
-              <br />
-              <span className="italic">costs to fence.</span>
-            </h1>
-            <p className="mt-8 text-lg leading-relaxed text-ink">
-              Monthly dues cover coaching and club operations. Equipment is purchased separately —
-              the club helps with sizing, and you can build a kit gradually as you commit to the
-              sport.
-            </p>
-            <p className="mt-5 text-mute leading-relaxed">
-              Not sure yet?{" "}
-              <a href="/observe" className="underline-draw text-ink hover:text-purple-700">
-                Watch a class first
-              </a>{" "}
-              — there&rsquo;s no charge to observe.
-            </p>
-          </div>
-          <div className="col-span-12 md:col-span-4 md:col-start-9 mt-10 md:mt-0">
-            <FeatureImage
-              src="/img/fees.jpg"
-              alt="Two fencers in their whites after a bout"
-              priority
-              aspect="aspect-[2/3]"
-            />
-          </div>
+        <div className="max-w-3xl">
+          <Eyebrow>Membership &amp; fees</Eyebrow>
+          <h1 className="mt-6 text-[clamp(48px,7vw,96px)] leading-[1.0]">
+            What it
+            <br />
+            <span className="italic">costs to fence.</span>
+          </h1>
+          <p className="mt-8 text-lg leading-relaxed text-ink">
+            Monthly dues cover coaching and club operations. Equipment is purchased separately —
+            the club helps with sizing, and you can build a kit gradually as you commit to the
+            sport.
+          </p>
+          <p className="mt-5 text-mute leading-relaxed">
+            Not sure yet?{" "}
+            <a href="/observe" className="underline-draw text-ink hover:text-purple-700">
+              Watch a class first
+            </a>{" "}
+            — there&rsquo;s no charge to observe.
+          </p>
         </div>
         <StripRule className="mt-20" />
       </Section>
