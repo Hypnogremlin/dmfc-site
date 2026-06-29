@@ -183,6 +183,16 @@ ARBITRATION: Except as set forth in the Safe Sport Code promulgated by the US Ce
 Any arbitration shall be administered by the American Arbitration Association in accordance with its Commercial Arbitration Rules and judgment on the award rendered by the arbitrator(s) may be entered in any court having jurisdiction thereof. The arbitration shall be governed by the laws of the State of Colorado and the United States, conducted in Colorado Springs, Colorado. The arbitration shall be commenced within any time limit(s), and its scope shall not exceed any limitations, set forth in the Grievance and Disciplinary Procedures set forth in the Athlete Handbook. The arbitrator(s) will have no authority or jurisdiction to award consequential, punitive or exemplary damages, and any demand for such damages shall be a nullity. Except as may be required by law or as reasonably required to enforce or appeal from an arbitration award or as noted above, arbitration proceedings shall be kept confidential, and neither a party, an attorney for a party, a witness, nor an arbitrator may disclose the existence, content, or results of any arbitration hereunder to a non-party without the prior written consent of all parties.
 
 FOR PARENTS/GUARDIANS OF PARTICIPANTS OF MINORITY AGE (UNDER AGE 18 AT TIME OF REGISTRATION)This is to certify that I, as parent/guardian with legal responsibility for this participant, do consent and agree to his/her release as provided above of all the Releasees, and, for myself, my heirs, assigns, and next of kin, I release and agree to indemnify and hold harmless the Releasees from any and all liabilities incident to my minor child’s involvement or participation in these programs as provided above, EVEN IF ARISING FROM THE NEGLIGENCE OF THE RELEASEES, to the fullest extent permitted by law.`;
+const PHOTO_RELEASE_BODY = `We love sharing moments from practices and events — it's one of the ways we celebrate our athletes and introduce new families to the sport.
+
+By signing this release, I give the Des Moines Fencing Club permission to photograph and video record me or my child during club activities, and to use those images on the club website, social media, newsletters, and other promotional materials. Images will only be used for club-related purposes, and no payment is owed for their use.
+
+Photos may be cropped or edited as needed. Because we post regularly, we aren't able to seek individual approval before each use — but we'll always represent our athletes with care and respect.
+
+This permission covers the current membership season and renews each season I maintain an active DMFC membership.`;
+const PHOTO_RELEASE_ACK = `I have read the photo and video release above and, as the athlete or parent/guardian of the athlete named in this form, I agree to its terms.`;
+const PHOTO_RELEASE_HEADER = "Photo & Video Release";
+
 const MAAPP_BODY = `I agree to abide by the current rules and policies of USA Fencing as set forth in, among other things, the Bylaws, Rules of Competition, Athlete Handbook, Operations Manual, USA Fencing Safe Sport Policy, US Center for Safesport Code for the US Olympic and Paralympic movement (including the Practices and Procedures and Supplementary Rules appended thereto) and USADA Rules, all as now constituted and as may be amended from time to time. I agree to abide by any updates made to these policies during the membership season. These updates will be communicated to membership through email.
 
 CLICK HERE - https://www.usafencing.org/maapp
@@ -264,6 +274,8 @@ function initialFormData(userEmail: string): MembershipFormData {
     individual_waiver_signature: "",
     maapp_agreed: false,
     maapp_signature: "",
+    photo_release_agreed: false,
+    photo_release_signature: "",
   };
 }
 
@@ -336,6 +348,10 @@ function validateStep(step: number, data: MembershipFormData): Errors {
     // 5. MAAPP Waiver — always (signer derived from age)
     if (isBlank(data.maapp_signature)) errs.maapp_signature = "Signature is required.";
     if (!data.maapp_agreed) errs.maapp_agreed = "You must agree to continue.";
+
+    // 6. Photo & Video Release — always (signer derived from age)
+    if (isBlank(data.photo_release_signature)) errs.photo_release_signature = "Signature is required.";
+    if (!data.photo_release_agreed) errs.photo_release_agreed = "You must agree to continue.";
   }
 
   return errs;
@@ -1240,6 +1256,25 @@ function Step5Waivers({
             signature: data.maapp_signature,
             onSignature: (v) => onChange("maapp_signature", v),
             signatureError: errors.maapp_signature,
+          },
+        ]}
+      />
+
+      {/* 6. Photo & Video Release — athlete (adult) or guardian (minor) */}
+      <WaiverBlock
+        header={PHOTO_RELEASE_HEADER}
+        body={PHOTO_RELEASE_BODY}
+        signers={[
+          {
+            fieldKey: "photo_release",
+            signerLabel: soleSigner,
+            acknowledgment: PHOTO_RELEASE_ACK,
+            agreed: data.photo_release_agreed,
+            onAgreed: (v) => onChange("photo_release_agreed", v),
+            agreedError: errors.photo_release_agreed,
+            signature: data.photo_release_signature,
+            onSignature: (v) => onChange("photo_release_signature", v),
+            signatureError: errors.photo_release_signature,
           },
         ]}
       />

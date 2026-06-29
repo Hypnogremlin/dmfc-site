@@ -87,6 +87,10 @@ export type MemberWaiver = {
   maapp_agreed: boolean;
   maapp_signature: string | null;
   maapp_signed_at: string | null;
+  // 6. Photo & Video Release — athlete (adult) or guardian (minor)
+  photo_release_agreed: boolean;
+  photo_release_signature: string | null;
+  photo_release_signed_at: string | null;
   created_at: string;
 };
 
@@ -152,6 +156,9 @@ export type MembershipFormData = {
   // 5. MAAPP Waiver — athlete (adult) or guardian (minor)
   maapp_agreed: boolean;
   maapp_signature: string;
+  // 6. Photo & Video Release — athlete (adult) or guardian (minor)
+  photo_release_agreed: boolean;
+  photo_release_signature: string;
 };
 
 export const MEMBERSHIP_SEASON = "2026-27";

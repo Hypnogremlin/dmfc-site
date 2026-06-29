@@ -151,6 +151,10 @@ export async function submitMembershipForm(
         maapp_agreed: data.maapp_agreed,
         maapp_signature: data.maapp_signature || null,
         maapp_signed_at: data.maapp_signature ? now : null,
+        // 6. Photo & Video Release
+        photo_release_agreed: data.photo_release_agreed,
+        photo_release_signature: data.photo_release_signature || null,
+        photo_release_signed_at: data.photo_release_signature ? now : null,
       },
       { onConflict: "profile_id,season_year" }
     );
