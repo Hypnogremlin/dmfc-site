@@ -17,6 +17,10 @@ import { FormField } from "./FormField";
 
 type Props = {
   userEmail: string;
+  // Pre-filled values: shared contact/address when adding another family member,
+  // or a member's full record when editing. contact_email always stays the
+  // account login email.
+  defaults?: Partial<MembershipFormData>;
   onSubmit: (data: MembershipFormData) => Promise<{ ok: boolean; error?: string }>;
 };
 
@@ -217,8 +221,11 @@ const MAAPP_LINK = {
 
 // ─── Initial form state ───────────────────────────────────────────────────────
 
-function initialFormData(userEmail: string): MembershipFormData {
-  return {
+function initialFormData(
+  userEmail: string,
+  defaults?: Partial<MembershipFormData>
+): MembershipFormData {
+  const base: MembershipFormData = {
     first_name: "",
     last_name: "",
     birthday: "",
@@ -277,6 +284,9 @@ function initialFormData(userEmail: string): MembershipFormData {
     photo_release_agreed: false,
     photo_release_signature: "",
   };
+  // Merge any pre-filled values over the blank base, but keep contact_email
+  // pinned to the account login email.
+  return { ...base, ...(defaults ?? {}), contact_email: userEmail };
 }
 
 // ─── Validation ───────────────────────────────────────────────────────────────
@@ -1315,10 +1325,10 @@ function ProgressIndicator({ step }: { step: number }) {
 
 // ─── Main component ───────────────────────────────────────────────────────────
 
-export function MembershipForm({ userEmail, onSubmit }: Props) {
+export function MembershipForm({ userEmail, defaults, onSubmit }: Props) {
   const [step, setStep] = useState(0);
   const [data, setData] = useState<MembershipFormData>(() =>
-    initialFormData(userEmail)
+    initialFormData(userEmail, defaults)
   );
   const [errors, setErrors] = useState<Errors>({});
   const [submitting, setSubmitting] = useState(false);

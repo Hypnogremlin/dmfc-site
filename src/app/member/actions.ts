@@ -7,8 +7,13 @@ import {
   MEMBERSHIP_SEASON,
 } from "@/lib/member-types";
 
+// Enroll a new member (no profileId) or update an existing member owned by the
+// signed-in account (profileId given). The login is always recorded as the
+// member's account_owner_id; RLS guarantees an owner can only touch their own
+// members and the child rows beneath them.
 export async function submitMembershipForm(
-  data: MembershipFormData
+  data: MembershipFormData,
+  profileId?: string
 ): Promise<{ ok: boolean; error?: string }> {
   const supabase = await createSessionClient();
 
@@ -21,43 +26,77 @@ export async function submitMembershipForm(
     return { ok: false, error: "Not authenticated. Please sign in again." };
   }
 
-  // 1. Upsert profile
-  const { error: profileError } = await supabase.from("profiles").upsert(
-    {
-      id: user.id,
-      first_name: data.first_name,
-      last_name: data.last_name,
-      birthday: data.birthday,
-      usa_citizen: data.usa_citizen,
-      sex_at_birth: data.sex_at_birth || null,
-      gender_identity: data.gender_identity || null,
-      weapon_classes: data.weapon_classes,
-      shirt_size: data.shirt_size || null,
-      contact_email: data.contact_email,
-      contact_phone: data.contact_phone,
-      address_line1: data.address_line1,
-      address_line2: data.address_line2 || null,
-      city: data.city,
-      state: data.state,
-      zip_code: data.zip_code,
-      guardian_first_name: data.guardian_first_name || null,
-      guardian_last_name: data.guardian_last_name || null,
-      guardian_relationship: data.guardian_relationship || null,
-      guardian_phone: data.guardian_phone || null,
-      membership_season: MEMBERSHIP_SEASON,
-      enrollment_complete: true,
-    },
-    { onConflict: "id" }
-  );
+  // 1. Insert or update the member profile.
+  const profilePayload = {
+    account_owner_id: user.id,
+    first_name: data.first_name,
+    last_name: data.last_name,
+    birthday: data.birthday,
+    usa_citizen: data.usa_citizen,
+    sex_at_birth: data.sex_at_birth || null,
+    gender_identity: data.gender_identity || null,
+    weapon_classes: data.weapon_classes,
+    shirt_size: data.shirt_size || null,
+    contact_email: data.contact_email,
+    contact_phone: data.contact_phone,
+    address_line1: data.address_line1,
+    address_line2: data.address_line2 || null,
+    city: data.city,
+    state: data.state,
+    zip_code: data.zip_code,
+    guardian_first_name: data.guardian_first_name || null,
+    guardian_last_name: data.guardian_last_name || null,
+    guardian_relationship: data.guardian_relationship || null,
+    guardian_phone: data.guardian_phone || null,
+    membership_season: MEMBERSHIP_SEASON,
+    enrollment_complete: true,
+  };
 
-  if (profileError) {
-    return { ok: false, error: profileError.message };
+  let memberId: string;
+
+  if (profileId) {
+    // Update an existing member. RLS limits this to the owner's own rows, so a
+    // mismatched id simply affects zero rows — which we detect via .select().
+    const { data: updated, error: profileError } = await supabase
+      .from("profiles")
+      .update(profilePayload)
+      .eq("id", profileId)
+      .select("id")
+      .single();
+
+    if (profileError || !updated) {
+      return {
+        ok: false,
+        error: profileError?.message ?? "Member not found.",
+      };
+    }
+    memberId = updated.id;
+  } else {
+    // New member — let the DB assign a fresh id (gen_random_uuid).
+    const { data: inserted, error: profileError } = await supabase
+      .from("profiles")
+      .insert(profilePayload)
+      .select("id")
+      .single();
+
+    if (profileError || !inserted) {
+      return {
+        ok: false,
+        error: profileError?.message ?? "Could not create member.",
+      };
+    }
+    memberId = inserted.id;
   }
 
-  // 2. Upsert emergency contacts
+  // 2. Upsert emergency contacts (keyed by profile + order).
+  const hasEc2 =
+    data.ec2_last_name.trim() &&
+    data.ec2_first_name.trim() &&
+    data.ec2_phone.trim();
+
   const ecRows = [
     {
-      profile_id: user.id,
+      profile_id: memberId,
       contact_order: 1,
       last_name: data.ec1_last_name,
       first_name: data.ec1_first_name,
@@ -71,10 +110,10 @@ export async function submitMembershipForm(
       zip_code: data.ec1_zip_code || null,
     },
     // Only include EC2 if the required fields are filled in
-    ...(data.ec2_last_name.trim() && data.ec2_first_name.trim() && data.ec2_phone.trim()
+    ...(hasEc2
       ? [
           {
-            profile_id: user.id,
+            profile_id: memberId,
             contact_order: 2,
             last_name: data.ec2_last_name,
             first_name: data.ec2_first_name,
@@ -101,12 +140,25 @@ export async function submitMembershipForm(
     return { ok: false, error: ecError.message };
   }
 
+  // On an edit where EC2 was cleared, remove the previously-saved second contact.
+  if (!hasEc2) {
+    const { error: ec2DeleteError } = await supabase
+      .from("emergency_contacts")
+      .delete()
+      .eq("profile_id", memberId)
+      .eq("contact_order", 2);
+
+    if (ec2DeleteError) {
+      return { ok: false, error: ec2DeleteError.message };
+    }
+  }
+
   // 3. Upsert member_medical
   const { error: medicalError } = await supabase
     .from("member_medical")
     .upsert(
       {
-        profile_id: user.id,
+        profile_id: memberId,
         medical_conditions: data.medical_conditions || null,
         preferred_medical_system: data.preferred_medical_system || null,
       },
@@ -126,7 +178,7 @@ export async function submitMembershipForm(
     .from("member_waivers")
     .upsert(
       {
-        profile_id: user.id,
+        profile_id: memberId,
         season_year: MEMBERSHIP_SEASON,
         // 1. Rules of the Club
         rules_club_athlete_agreed: data.rules_club_athlete_agreed,
@@ -161,6 +213,34 @@ export async function submitMembershipForm(
 
   if (waiverError) {
     return { ok: false, error: waiverError.message };
+  }
+
+  return { ok: true };
+}
+
+// Remove a member from the account. RLS restricts this to the owner's members;
+// child rows (emergency contacts, medical, waivers) cascade away.
+export async function deleteMember(
+  profileId: string
+): Promise<{ ok: boolean; error?: string }> {
+  const supabase = await createSessionClient();
+
+  const {
+    data: { user },
+    error: userError,
+  } = await supabase.auth.getUser();
+
+  if (userError || !user) {
+    return { ok: false, error: "Not authenticated. Please sign in again." };
+  }
+
+  const { error } = await supabase
+    .from("profiles")
+    .delete()
+    .eq("id", profileId);
+
+  if (error) {
+    return { ok: false, error: error.message };
   }
 
   return { ok: true };
