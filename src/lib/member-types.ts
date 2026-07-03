@@ -29,6 +29,9 @@ export type Profile = {
   guardian_phone: string | null;
   // Admin-managed: set on the backend, never by the member through the form.
   usa_fencing_number: string | null;
+  // Admin-managed ISO Alpha-2 codes for the USAF bulk upload; default 'US'.
+  citizenship_country: string;
+  representing_country: string;
   membership_season: string | null;
   enrollment_complete: boolean;
   // Set when this member was included in the weekly USA Fencing report; NULL

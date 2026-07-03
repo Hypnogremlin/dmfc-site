@@ -1,60 +1,79 @@
 import type { NextRequest } from "next/server";
 import { createServiceClient } from "@/lib/supabase";
 import { Resend } from "resend";
-import type { WeaponClass } from "@/lib/member-types";
 
-// Columns pulled for the report — a focused subset of profiles aimed at USA
-// Fencing registration. No medical/waiver data is exported.
+// Columns pulled for the report — exactly what the USA Fencing Bulk Uploader
+// template needs. No medical data is exported.
 type MemberRow = {
   id: string;
-  created_at: string;
   first_name: string;
   last_name: string;
   birthday: string;
-  sex_at_birth: string | null;
+  sex_at_birth: "male" | "female" | null;
   usa_fencing_number: string | null;
-  weapon_classes: WeaponClass[] | null;
-  membership_season: string | null;
   contact_email: string;
   contact_phone: string;
-  guardian_first_name: string | null;
-  guardian_last_name: string | null;
-  guardian_phone: string | null;
+  address_line1: string;
+  address_line2: string | null;
+  city: string;
+  state: string;
+  zip_code: string;
+  citizenship_country: string;
+  representing_country: string;
+  individual_waiver_agreed: boolean;
+  maapp_agreed: boolean;
+  rules_club_athlete_agreed: boolean;
+  athlete_coc_agreed: boolean;
 };
 
-const WEAPON_LABELS: Record<WeaponClass, string> = {
-  "foil-youth": "Foil (Youth)",
-  "foil-adult": "Foil (Adult)",
-  epee: "Epee",
-  saber: "Saber",
+// Postgres DATE columns serialize as "yyyy-mm-dd". USAF's template wants
+// US-order month/day/year with no leading zeros (confirmed against a real
+// accepted upload — the written instructions doc actually says day-first,
+// which is wrong). Parsed via string split rather than `new Date()` to avoid
+// a UTC-offset day shift on a plain calendar date.
+function formatUsafDob(iso: string): string {
+  const [year, month, day] = iso.split("-");
+  return `${Number(month)}/${Number(day)}/${year}`;
+}
+
+const GENDER_CODE: Record<"male" | "female", string> = {
+  male: "m",
+  female: "f",
 };
 
-// CSV columns in output order: [header, value extractor].
+// CSV columns in the exact order/headers of USA Fencing's Bulk Uploader
+// template. Row 1 headers must match the downloaded template byte-for-byte.
 const COLUMNS: [string, (m: MemberRow) => string][] = [
-  ["Enrolled On", (m) => (m.created_at ? m.created_at.slice(0, 10) : "")],
-  ["Last Name", (m) => m.last_name],
-  ["First Name", (m) => m.first_name],
-  ["Birthday", (m) => m.birthday],
-  ["Sex at Birth", (m) => m.sex_at_birth ?? ""],
-  ["USA Fencing #", (m) => m.usa_fencing_number ?? ""],
+  ["Membership#", (m) => m.usa_fencing_number ?? ""],
+  ["LastName", (m) => m.last_name],
+  ["FirstName", (m) => m.first_name],
+  ["DOB", (m) => formatUsafDob(m.birthday)],
+  ["Email", (m) => m.contact_email],
+  ["Gender", (m) => (m.sex_at_birth ? GENDER_CODE[m.sex_at_birth] : "")],
   [
-    "Weapon Classes",
+    "Address#1",
     (m) =>
-      (m.weapon_classes ?? [])
-        .map((w) => WEAPON_LABELS[w] ?? w)
-        .join("; "),
+      m.address_line2
+        ? `${m.address_line1}, ${m.address_line2}`
+        : m.address_line1,
   ],
-  ["Membership Season", (m) => m.membership_season ?? ""],
-  ["Contact Email", (m) => m.contact_email],
-  ["Contact Phone", (m) => m.contact_phone],
+  ["City", (m) => m.city],
+  ["State", (m) => m.state],
+  ["Zip", (m) => m.zip_code],
+  ["Citizenship", (m) => m.citizenship_country],
+  ["RepresentingCountry", (m) => m.representing_country],
+  ["Note", () => ""],
+  ["Phone#", (m) => m.contact_phone],
   [
-    "Guardian Name",
-    (m) =>
-      [m.guardian_first_name, m.guardian_last_name]
-        .filter(Boolean)
-        .join(" "),
+    "Signed Membership Waiver",
+    (m) => (m.individual_waiver_agreed ? "X" : ""),
   ],
-  ["Guardian Phone", (m) => m.guardian_phone ?? ""],
+  ["Signed MAAPP Policy", (m) => (m.maapp_agreed ? "X" : "")],
+  // Required for every completed enrollment (adult or minor) per the
+  // enrollment form's validation — matches the real template, where this
+  // column is "X" even for adult fencers with no guardian on file.
+  ["Parent Signature", (m) => (m.rules_club_athlete_agreed ? "X" : "")],
+  ["Signed Code of Conduct", (m) => (m.athlete_coc_agreed ? "X" : "")],
 ];
 
 // Quote a cell only when it contains a comma, quote, or newline; double internal
@@ -108,7 +127,10 @@ export async function GET(request: NextRequest) {
   const { data: rows, error: fetchError } = await supabase
     .from("profiles")
     .select(
-      "id, created_at, first_name, last_name, birthday, sex_at_birth, usa_fencing_number, weapon_classes, membership_season, contact_email, contact_phone, guardian_first_name, guardian_last_name, guardian_phone"
+      "id, first_name, last_name, birthday, sex_at_birth, usa_fencing_number, " +
+        "contact_email, contact_phone, address_line1, address_line2, city, state, zip_code, " +
+        "citizenship_country, representing_country, individual_waiver_agreed, maapp_agreed, " +
+        "rules_club_athlete_agreed, athlete_coc_agreed"
     )
     .eq("enrollment_complete", true)
     .is("usaf_reported_at", null)
@@ -128,10 +150,10 @@ export async function GET(request: NextRequest) {
     return Response.json({ ok: true, members_reported: 0 });
   }
 
-  const members = rows as MemberRow[];
+  const members = rows as unknown as MemberRow[];
   const csv = buildCsv(members);
   const today = new Date().toISOString().slice(0, 10); // YYYY-MM-DD (UTC)
-  const filename = `dmfc-new-members-${today}.csv`;
+  const filename = `dmfc-usaf-bulk-upload-${today}.csv`;
   const count = members.length;
 
   // ── 3. Email the CSV to the president ──────────────────────────────────────
@@ -146,8 +168,10 @@ export async function GET(request: NextRequest) {
     subject: `New DMFC members for USA Fencing tracking — ${today} (${count})`,
     text:
       `${count} new ${memberWord} completed enrollment since the last report.\n\n` +
-      `The attached CSV (${filename}) lists them for USA Fencing membership ` +
-      `tracking. Each member appears in this report only once.`,
+      `The attached CSV (${filename}) is formatted for the USA Fencing Club ` +
+      `Manager Bulk Uploader — download it and upload as-is under Roster > ` +
+      `Bulk Uploader > Start a new Upload, membership type "Access". ` +
+      `Each member appears in this report only once.`,
     attachments: [
       {
         filename,
