@@ -123,24 +123,31 @@ async function loadMemberChildren(
   medical: MemberMedical | null;
   waiver: MemberWaiver | null;
 }> {
-  const [{ data: contacts }, { data: medical }, { data: waiver }] =
-    await Promise.all([
-      supabase
-        .from("emergency_contacts")
-        .select("*")
-        .eq("profile_id", profileId),
-      supabase
-        .from("member_medical")
-        .select("*")
-        .eq("profile_id", profileId)
-        .maybeSingle(),
-      supabase
-        .from("member_waivers")
-        .select("*")
-        .eq("profile_id", profileId)
-        .eq("season_year", MEMBERSHIP_SEASON)
-        .maybeSingle(),
-    ]);
+  const [
+    { data: contacts, error: contactsError },
+    { data: medical, error: medicalError },
+    { data: waiver, error: waiverError },
+  ] = await Promise.all([
+    supabase
+      .from("emergency_contacts")
+      .select("*")
+      .eq("profile_id", profileId),
+    supabase
+      .from("member_medical")
+      .select("*")
+      .eq("profile_id", profileId)
+      .maybeSingle(),
+    supabase
+      .from("member_waivers")
+      .select("*")
+      .eq("profile_id", profileId)
+      .eq("season_year", MEMBERSHIP_SEASON)
+      .maybeSingle(),
+  ]);
+
+  if (contactsError || medicalError || waiverError) {
+    throw new Error("Failed to load member data.");
+  }
 
   return {
     contacts: (contacts as EmergencyContact[]) ?? [],

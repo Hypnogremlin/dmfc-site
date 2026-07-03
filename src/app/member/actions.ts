@@ -141,7 +141,8 @@ export async function submitMembershipForm(
   }
 
   // On an edit where EC2 was cleared, remove the previously-saved second contact.
-  if (!hasEc2) {
+  // Skip this on new enrollments — no EC2 row exists yet.
+  if (profileId && !hasEc2) {
     const { error: ec2DeleteError } = await supabase
       .from("emergency_contacts")
       .delete()
@@ -172,75 +173,53 @@ export async function submitMembershipForm(
   // 4. Upsert member_waivers
   // Signer is derived from athlete age in the form. *_signed_at is stamped
   // only for signatures that were actually provided (guardian fields stay
-  // null for adult athletes).
+  // null for adult athletes). On edits, omit all *_signed_at fields so the
+  // original signing timestamps are preserved in the DB.
   const now = new Date().toISOString();
+  const waiverPayload = {
+    profile_id: memberId,
+    season_year: MEMBERSHIP_SEASON,
+    // 1. Rules of the Club
+    rules_club_athlete_agreed: data.rules_club_athlete_agreed,
+    rules_club_athlete_signature: data.rules_club_athlete_signature || null,
+    rules_club_guardian_agreed: data.rules_club_guardian_agreed,
+    rules_club_guardian_signature: data.rules_club_guardian_signature || null,
+    // 2. Athlete Code of Conduct
+    athlete_coc_agreed: data.athlete_coc_agreed,
+    athlete_coc_signature: data.athlete_coc_signature || null,
+    // 3. Parent Code of Conduct (minors only)
+    parent_coc_agreed: data.parent_coc_agreed,
+    parent_coc_signature: data.parent_coc_signature || null,
+    // 4. Individual Membership Waiver
+    individual_waiver_agreed: data.individual_waiver_agreed,
+    individual_waiver_signature: data.individual_waiver_signature || null,
+    // 5. MAAPP Waiver
+    maapp_agreed: data.maapp_agreed,
+    maapp_signature: data.maapp_signature || null,
+    // 6. Photo & Video Release
+    photo_release_agreed: data.photo_release_agreed,
+    photo_release_signature: data.photo_release_signature || null,
+    // Include signing timestamps only on first enrollment — never overwrite
+    // existing evidence on subsequent edits.
+    ...(!profileId
+      ? {
+          rules_club_athlete_signed_at: data.rules_club_athlete_signature ? now : null,
+          rules_club_guardian_signed_at: data.rules_club_guardian_signature ? now : null,
+          athlete_coc_signed_at: data.athlete_coc_signature ? now : null,
+          parent_coc_signed_at: data.parent_coc_signature ? now : null,
+          individual_waiver_signed_at: data.individual_waiver_signature ? now : null,
+          maapp_signed_at: data.maapp_signature ? now : null,
+          photo_release_signed_at: data.photo_release_signature ? now : null,
+        }
+      : {}),
+  };
+
   const { error: waiverError } = await supabase
     .from("member_waivers")
-    .upsert(
-      {
-        profile_id: memberId,
-        season_year: MEMBERSHIP_SEASON,
-        // 1. Rules of the Club
-        rules_club_athlete_agreed: data.rules_club_athlete_agreed,
-        rules_club_athlete_signature: data.rules_club_athlete_signature || null,
-        rules_club_athlete_signed_at: data.rules_club_athlete_signature ? now : null,
-        rules_club_guardian_agreed: data.rules_club_guardian_agreed,
-        rules_club_guardian_signature: data.rules_club_guardian_signature || null,
-        rules_club_guardian_signed_at: data.rules_club_guardian_signature ? now : null,
-        // 2. Athlete Code of Conduct
-        athlete_coc_agreed: data.athlete_coc_agreed,
-        athlete_coc_signature: data.athlete_coc_signature || null,
-        athlete_coc_signed_at: data.athlete_coc_signature ? now : null,
-        // 3. Parent Code of Conduct (minors only)
-        parent_coc_agreed: data.parent_coc_agreed,
-        parent_coc_signature: data.parent_coc_signature || null,
-        parent_coc_signed_at: data.parent_coc_signature ? now : null,
-        // 4. Individual Membership Waiver
-        individual_waiver_agreed: data.individual_waiver_agreed,
-        individual_waiver_signature: data.individual_waiver_signature || null,
-        individual_waiver_signed_at: data.individual_waiver_signature ? now : null,
-        // 5. MAAPP Waiver
-        maapp_agreed: data.maapp_agreed,
-        maapp_signature: data.maapp_signature || null,
-        maapp_signed_at: data.maapp_signature ? now : null,
-        // 6. Photo & Video Release
-        photo_release_agreed: data.photo_release_agreed,
-        photo_release_signature: data.photo_release_signature || null,
-        photo_release_signed_at: data.photo_release_signature ? now : null,
-      },
-      { onConflict: "profile_id,season_year" }
-    );
+    .upsert(waiverPayload, { onConflict: "profile_id,season_year" });
 
   if (waiverError) {
     return { ok: false, error: waiverError.message };
-  }
-
-  return { ok: true };
-}
-
-// Remove a member from the account. RLS restricts this to the owner's members;
-// child rows (emergency contacts, medical, waivers) cascade away.
-export async function deleteMember(
-  profileId: string
-): Promise<{ ok: boolean; error?: string }> {
-  const supabase = await createSessionClient();
-
-  const {
-    data: { user },
-    error: userError,
-  } = await supabase.auth.getUser();
-
-  if (userError || !user) {
-    return { ok: false, error: "Not authenticated. Please sign in again." };
-  }
-
-  const { error } = await supabase
-    .from("profiles")
-    .delete()
-    .eq("id", profileId);
-
-  if (error) {
-    return { ok: false, error: error.message };
   }
 
   return { ok: true };
