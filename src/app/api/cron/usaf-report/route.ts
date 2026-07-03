@@ -94,6 +94,15 @@ export async function GET(request: NextRequest) {
     );
   }
 
+  const resendApiKey = process.env.RESEND_API_KEY;
+  if (!resendApiKey) {
+    console.error("[cron/usaf-report] RESEND_API_KEY is not set");
+    return Response.json(
+      { ok: false, error: "RESEND_API_KEY not configured" },
+      { status: 500 }
+    );
+  }
+
   // ── 1. Fetch completed members not yet included in any report ──────────────
   const supabase = createServiceClient();
   const { data: rows, error: fetchError } = await supabase
@@ -126,7 +135,7 @@ export async function GET(request: NextRequest) {
   const count = members.length;
 
   // ── 3. Email the CSV to the president ──────────────────────────────────────
-  const resend = new Resend(process.env.RESEND_API_KEY);
+  const resend = new Resend(resendApiKey);
   const FROM =
     "Des Moines Fencing Club <noreply@emails.desmoinesfencingclub.org>";
 

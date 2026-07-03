@@ -15,6 +15,9 @@ ALTER TABLE public.profiles
 
 -- Partial index over the exact predicate the cron filters on (completed members
 -- not yet reported), keeping the weekly scan cheap as the table grows.
+-- Drop first so the corrected predicate and indexed column take effect.
+DROP INDEX IF EXISTS profiles_usaf_unreported_idx;
+
 CREATE INDEX IF NOT EXISTS profiles_usaf_unreported_idx
-  ON public.profiles (enrollment_complete)
-  WHERE usaf_reported_at IS NULL;
+  ON public.profiles (id)
+  WHERE enrollment_complete = true AND usaf_reported_at IS NULL;
