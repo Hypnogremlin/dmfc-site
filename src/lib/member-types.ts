@@ -5,6 +5,9 @@ export type SignerType = "athlete" | "guardian";
 
 export type Profile = {
   id: string;
+  // The login (auth.users.id) that owns this member. One owner may have many
+  // member profiles (a family). For pre-family rows this equals id.
+  account_owner_id: string;
   first_name: string;
   last_name: string;
   birthday: string;
@@ -30,6 +33,17 @@ export type Profile = {
   enrollment_complete: boolean;
   created_at: string;
   updated_at: string;
+};
+
+// Lightweight shape for the dashboard roster (one row per member on an account).
+export type MemberSummary = {
+  id: string;
+  first_name: string;
+  last_name: string;
+  birthday: string;
+  weapon_classes: WeaponClass[];
+  membership_season: string | null;
+  enrollment_complete: boolean;
 };
 
 export type EmergencyContact = {
