@@ -1,6 +1,7 @@
 import type { NextRequest } from "next/server";
 import { createServiceClient } from "@/lib/supabase";
 import { Resend } from "resend";
+import { MEMBERSHIP_SEASON } from "@/lib/member-types";
 
 // Columns pulled for the report — exactly what the USA Fencing Bulk Uploader
 // template needs. No medical data is exported.
@@ -20,11 +21,21 @@ type MemberRow = {
   zip_code: string;
   citizenship_country: string;
   representing_country: string;
-  individual_waiver_agreed: boolean;
-  maapp_agreed: boolean;
-  rules_club_athlete_agreed: boolean;
-  athlete_coc_agreed: boolean;
+  // Agreements live on a separate member_waivers row (one per profile per
+  // season), not on profiles itself — see 20260623_waivers_reshape_guardian_usafnum.sql.
+  member_waivers: {
+    season_year: string;
+    individual_waiver_agreed: boolean;
+    maapp_agreed: boolean;
+    rules_club_athlete_agreed: boolean;
+    athlete_coc_agreed: boolean;
+  }[];
 };
+
+// The current season's waiver row for a member, if any.
+function currentWaiver(m: MemberRow) {
+  return m.member_waivers.find((w) => w.season_year === MEMBERSHIP_SEASON);
+}
 
 // Postgres DATE columns serialize as "yyyy-mm-dd". USAF's template wants
 // US-order month/day/year with no leading zeros (confirmed against a real
@@ -66,14 +77,20 @@ const COLUMNS: [string, (m: MemberRow) => string][] = [
   ["Phone#", (m) => m.contact_phone],
   [
     "Signed Membership Waiver",
-    (m) => (m.individual_waiver_agreed ? "X" : ""),
+    (m) => (currentWaiver(m)?.individual_waiver_agreed ? "X" : ""),
   ],
-  ["Signed MAAPP Policy", (m) => (m.maapp_agreed ? "X" : "")],
+  ["Signed MAAPP Policy", (m) => (currentWaiver(m)?.maapp_agreed ? "X" : "")],
   // Required for every completed enrollment (adult or minor) per the
   // enrollment form's validation — matches the real template, where this
   // column is "X" even for adult fencers with no guardian on file.
-  ["Parent Signature", (m) => (m.rules_club_athlete_agreed ? "X" : "")],
-  ["Signed Code of Conduct", (m) => (m.athlete_coc_agreed ? "X" : "")],
+  [
+    "Parent Signature",
+    (m) => (currentWaiver(m)?.rules_club_athlete_agreed ? "X" : ""),
+  ],
+  [
+    "Signed Code of Conduct",
+    (m) => (currentWaiver(m)?.athlete_coc_agreed ? "X" : ""),
+  ],
 ];
 
 // Quote a cell only when it contains a comma, quote, or newline; double internal
@@ -129,8 +146,8 @@ export async function GET(request: NextRequest) {
     .select(
       "id, first_name, last_name, birthday, sex_at_birth, usa_fencing_number, " +
         "contact_email, contact_phone, address_line1, address_line2, city, state, zip_code, " +
-        "citizenship_country, representing_country, individual_waiver_agreed, maapp_agreed, " +
-        "rules_club_athlete_agreed, athlete_coc_agreed"
+        "citizenship_country, representing_country, " +
+        "member_waivers(season_year, individual_waiver_agreed, maapp_agreed, rules_club_athlete_agreed, athlete_coc_agreed)"
     )
     .eq("enrollment_complete", true)
     .is("usaf_reported_at", null)
