@@ -31,6 +31,9 @@ export type Profile = {
   usa_fencing_number: string | null;
   membership_season: string | null;
   enrollment_complete: boolean;
+  // Set when this member was included in the weekly USA Fencing report; NULL
+  // until then. Keeps each member reported exactly once.
+  usaf_reported_at: string | null;
   created_at: string;
   updated_at: string;
 };
