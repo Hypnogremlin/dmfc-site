@@ -6,6 +6,7 @@ import { Eyebrow } from "@/components/Eyebrow";
 import { StripRule } from "@/components/StripRule";
 import { signOut } from "./actions";
 import type { MemberSummary, WeaponClass } from "@/lib/member-types";
+import { isMinor } from "@/lib/age";
 import Link from "next/link";
 
 export const metadata: Metadata = {
@@ -28,16 +29,6 @@ function formatWeapons(classes: WeaponClass[]): string {
 function formatSeason(season: string | null): string {
   if (!season) return "---";
   return season.replace("-", "–");
-}
-
-function isMinor(birthday: string): boolean {
-  if (!birthday) return false;
-  const today = new Date();
-  const dob = new Date(birthday);
-  let age = today.getFullYear() - dob.getFullYear();
-  const m = today.getMonth() - dob.getMonth();
-  if (m < 0 || (m === 0 && today.getDate() < dob.getDate())) age--;
-  return age < 18;
 }
 
 type PortalLink = {
@@ -70,7 +61,7 @@ export default async function MemberDashboardPage() {
     redirect("/login?next=/member");
   }
 
-  const { data: members } = await supabase
+  const { data: members, error: membersError } = await supabase
     .from("profiles")
     .select(
       "id, first_name, last_name, birthday, weapon_classes, membership_season, enrollment_complete"
@@ -78,6 +69,13 @@ export default async function MemberDashboardPage() {
     .eq("account_owner_id", user.id)
     .order("created_at", { ascending: true })
     .returns<MemberSummary[]>();
+
+  // A DB error here is not "no members" — surface it instead of silently
+  // falling through to the first-enrollment redirect below, which would let
+  // an existing member create a duplicate profile.
+  if (membersError) {
+    throw new Error(membersError.message);
+  }
 
   // No members yet → start the first enrollment.
   if (!members || members.length === 0) {

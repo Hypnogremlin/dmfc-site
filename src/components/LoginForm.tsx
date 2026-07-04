@@ -21,10 +21,14 @@ export function LoginForm({ next, error }: LoginFormProps) {
     setSubmitError(null);
 
     const supabase = createBrowserSupabaseClient();
+    // Encode `next` — it's embedded directly in a query string, and an
+    // unencoded value (e.g. containing "&" or "#") could smuggle in extra
+    // query params or get misparsed by the callback route.
+    const encodedNext = encodeURIComponent(next ?? "/member");
     const redirectTo =
       typeof window !== "undefined"
-        ? `${window.location.origin}/auth/callback?next=${next ?? "/member"}`
-        : `/auth/callback?next=${next ?? "/member"}`;
+        ? `${window.location.origin}/auth/callback?next=${encodedNext}`
+        : `/auth/callback?next=${encodedNext}`;
 
     const { error: otpError } = await supabase.auth.signInWithOtp({
       email,

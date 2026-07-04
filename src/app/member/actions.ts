@@ -6,6 +6,7 @@ import {
   MembershipFormData,
   MEMBERSHIP_SEASON,
 } from "@/lib/member-types";
+import { validateMembershipForm } from "@/lib/membership-validation";
 
 // Enroll a new member (no profileId) or update an existing member owned by the
 // signed-in account (profileId given). The login is always recorded as the
@@ -24,6 +25,19 @@ export async function submitMembershipForm(
 
   if (userError || !user) {
     return { ok: false, error: "Not authenticated. Please sign in again." };
+  }
+
+  // 0. Server-side validation. The client (`MembershipForm.tsx`) already runs
+  // these checks step-by-step for UX, but that's just JS in the browser — a
+  // request can reach this action with none of it applied. Re-run the same
+  // rules (shared via @/lib/membership-validation) here so a member can never
+  // be marked enrollment_complete without the required fields and signatures.
+  const validationErrors = validateMembershipForm(data);
+  if (Object.keys(validationErrors).length > 0) {
+    return {
+      ok: false,
+      error: "Please complete all required fields and signatures before submitting.",
+    };
   }
 
   // 1. Insert or update the member profile.
@@ -49,7 +63,12 @@ export async function submitMembershipForm(
     guardian_relationship: data.guardian_relationship || null,
     guardian_phone: data.guardian_phone || null,
     membership_season: MEMBERSHIP_SEASON,
-    enrollment_complete: true,
+    // enrollment_complete is intentionally NOT set here. It only flips to
+    // true once the emergency-contact, medical, and waiver writes below all
+    // succeed (see step 5) — otherwise a member whose waiver write failed
+    // would look "Active" with no waiver row, and the weekly USAF cron
+    // (which selects on enrollment_complete = true) would report them with
+    // blank waiver flags.
   };
 
   let memberId: string;
@@ -220,6 +239,17 @@ export async function submitMembershipForm(
 
   if (waiverError) {
     return { ok: false, error: waiverError.message };
+  }
+
+  // 5. Every child write succeeded — now (and only now) mark the member
+  // enrollment complete.
+  const { error: completeError } = await supabase
+    .from("profiles")
+    .update({ enrollment_complete: true })
+    .eq("id", memberId);
+
+  if (completeError) {
+    return { ok: false, error: completeError.message };
   }
 
   return { ok: true };
