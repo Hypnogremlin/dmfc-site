@@ -16,6 +16,6 @@ Files are named by date. Apply in order.
 | `20260630_family_accounts.sql` | Yes |
 | `20260630_usaf_report_tracking.sql` | Yes |
 | `20260703_usaf_citizenship_fields.sql` | Yes |
-| `20260704_membership_hardening.sql` | **Partially.** Only Part 2 (the `observation_requests.weapon` check widening to `foil-youth`/`foil-adult`/`epee`/`saber`) has been applied manually against live. Parts 1, 3, and 4 (RLS `auth.uid()` initplan fix, `profiles.sex_at_birth` CHECK tightening, and the `observation_requests.converted_to_member_id` FK) are **pending** — the owner applies these. |
+| `20260704_membership_hardening.sql` | Yes — applied 2026-07-04 via the Supabase MCP (all four parts; Part 2 had previously been applied by hand). Recorded in the remote migration ledger. |
 
 Every file is written to be idempotent, so re-running an already-applied file (or the whole folder from scratch) is safe.
