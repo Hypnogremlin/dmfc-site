@@ -3,7 +3,7 @@ import { createMiddlewareClient } from "@/lib/supabase-middleware";
 
 const PROTECTED_PREFIXES = ["/member"];
 
-export async function middleware(request: NextRequest) {
+export async function proxy(request: NextRequest) {
   const response = NextResponse.next({ request });
   const supabase = createMiddlewareClient(request, response);
 
