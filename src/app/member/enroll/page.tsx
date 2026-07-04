@@ -175,12 +175,19 @@ export default async function EnrollPage({
     redirect(`/login?next=${encodeURIComponent(next)}`);
   }
 
-  const { data: members } = await supabase
+  const { data: members, error: membersError } = await supabase
     .from("profiles")
     .select("*")
     .eq("account_owner_id", user.id)
     .order("created_at", { ascending: true })
     .returns<Profile[]>();
+
+  // A DB error here is not "no members" — surface it instead of silently
+  // falling through to "first enrollment" mode, which would let an existing
+  // member create a duplicate profile.
+  if (membersError) {
+    throw new Error(membersError.message);
+  }
 
   let defaults: Partial<MembershipFormData> | undefined;
   let profileId: string | undefined;

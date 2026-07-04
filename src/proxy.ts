@@ -3,7 +3,7 @@ import { createMiddlewareClient } from "@/lib/supabase-middleware";
 
 const PROTECTED_PREFIXES = ["/member"];
 
-export async function middleware(request: NextRequest) {
+export async function proxy(request: NextRequest) {
   const response = NextResponse.next({ request });
   const supabase = createMiddlewareClient(request, response);
 
@@ -24,6 +24,6 @@ export async function middleware(request: NextRequest) {
 
 export const config = {
   matcher: [
-    "/((?!_next/static|_next/image|favicon.ico|.*\.(?:svg|png|jpg|jpeg|gif|webp)$).*)",
+    "/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)",
   ],
 };
