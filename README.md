@@ -15,8 +15,46 @@ itself is built and maintained by club volunteers.
 - **[MDX](https://mdxjs.com)** for news and tournament content
 - **Vercel** for hosting and deployment
 
-Phase 2 (planned): **[Supabase](https://supabase.com)** for auth and
-member data, **[Resend](https://resend.com)** for transactional email.
+Plus **[Supabase](https://supabase.com)** for the member database and
+sign-in, and **[Resend](https://resend.com)** for transactional email.
+
+## Who runs what — services and accounts
+
+The site depends on a handful of services. Each does one job:
+
+| Service | What it does | Account |
+| --- | --- | --- |
+| **GitHub** (this repo) | Stores the code. Every change to the site starts here. | Jon Freed |
+| **Vercel** | Builds and serves the site. Watches GitHub and redeploys automatically on every push. | Jon Freed |
+| **Cloudflare** | DNS — points `desmoinesfencingclub.org` at Vercel. | Club (DMFCPresident@gmail.com) |
+| **WebHostingHub** | Domain registrar — where the domain name itself is registered and renewed. | Club (DMFCPresident@gmail.com) |
+| **Supabase** | Database and member sign-in (magic-link email login, member records, waivers, observation RSVPs). | Club (DMFCPresident@gmail.com) |
+| **Resend** | Sends the site's emails (observation confirmations/reminders, weekly membership report, sign-in links via Supabase SMTP). | Club (DMFCPresident@gmail.com) |
+
+In short: the **code** lives on GitHub, **Vercel** turns it into the live
+site, **Cloudflare** points the club's domain at it, and **WebHostingHub**
+is simply where the domain name is owned. **Supabase** and **Resend** power
+the member features and email behind the scenes.
+
+## Making changes to the site
+
+Almost every change follows the same three steps — no server to log into,
+nothing to upload:
+
+1. **Edit the code** (or content) in this repository. Text on a page lives
+   in that page's file under `src/app/` — for example, the Classes page is
+   `src/app/classes/page.tsx`. News and tournaments are simple MDX files in
+   `content/news/` (see below).
+2. **Commit and push to the `main` branch** on GitHub (or open a pull
+   request if you'd like review first).
+3. **That's it.** Vercel notices the push, rebuilds the site, and deploys
+   it automatically within a couple of minutes. Pushes to other branches
+   get their own preview URL so you can check changes before they go live.
+
+To do this you need to be added as a collaborator on the GitHub
+repository — ask Jon. Changes to DNS, the domain, the database, or email
+settings are rarer and go through the club-owned service accounts listed
+above.
 
 ## Running locally
 
