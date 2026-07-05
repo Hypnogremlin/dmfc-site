@@ -38,10 +38,10 @@ const US_STATES = [
 ];
 
 const WEAPON_OPTIONS: { value: WeaponClass; label: string }[] = [
-  { value: "foil-youth", label: "Foil Youth (ages 8–11)" },
-  { value: "foil-adult", label: "Foil Adult (ages 12 & up)" },
-  { value: "epee",       label: "Épée (Mon 6:30p)" },
-  { value: "saber",      label: "Saber (Thu 6:30p)" },
+  { value: "foil-youth", label: "Foil Youth (ages 8–12)" },
+  { value: "foil-adult", label: "Foil Adult (ages 13+)" },
+  { value: "epee",       label: "Épée Adult (Mon 6:30p)" },
+  { value: "saber",      label: "Saber All Ages (Thu 6:30p)" },
 ];
 
 const YOUTH_SHIRT_SIZES: ShirtSize[] = ["YXS", "YS", "YM", "YL", "YXL"];
