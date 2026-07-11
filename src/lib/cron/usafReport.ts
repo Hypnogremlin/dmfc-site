@@ -1,4 +1,3 @@
-import type { NextRequest } from "next/server";
 import { createServiceClient } from "@/lib/supabase";
 import { Resend } from "resend";
 import { MEMBERSHIP_SEASON } from "@/lib/member-types";
@@ -111,32 +110,21 @@ function buildCsv(members: MemberRow[]): string {
   return "﻿" + [header, ...lines].join("\r\n");
 }
 
-// Vercel invokes cron jobs via GET with an Authorization header containing the
-// CRON_SECRET env var as a Bearer token. We reject anything else.
-export async function GET(request: NextRequest) {
-  const authHeader = request.headers.get("authorization");
-  const cronSecret = process.env.CRON_SECRET;
-
-  if (!cronSecret || authHeader !== `Bearer ${cronSecret}`) {
-    return new Response("Unauthorized", { status: 401 });
-  }
-
+// Weekly USA Fencing membership report pass. Extracted unchanged from the
+// former standalone /api/cron/usaf-report route — see
+// src/app/api/cron/emails/route.ts for the consolidated entry point, which
+// only invokes this on Mondays.
+export async function runUsafReportPass() {
   const recipient = process.env.REPORT_RECIPIENT_EMAIL;
   if (!recipient) {
     console.error("[cron/usaf-report] REPORT_RECIPIENT_EMAIL is not set");
-    return Response.json(
-      { ok: false, error: "REPORT_RECIPIENT_EMAIL not configured" },
-      { status: 500 }
-    );
+    return { ok: false, error: "REPORT_RECIPIENT_EMAIL not configured", members_reported: 0 };
   }
 
   const resendApiKey = process.env.RESEND_API_KEY;
   if (!resendApiKey) {
     console.error("[cron/usaf-report] RESEND_API_KEY is not set");
-    return Response.json(
-      { ok: false, error: "RESEND_API_KEY not configured" },
-      { status: 500 }
-    );
+    return { ok: false, error: "RESEND_API_KEY not configured", members_reported: 0 };
   }
 
   // ── 1. Fetch completed members not yet included in any report ──────────────
@@ -155,16 +143,13 @@ export async function GET(request: NextRequest) {
 
   if (fetchError) {
     console.error("[cron/usaf-report] Supabase fetch error:", fetchError);
-    return Response.json(
-      { ok: false, error: fetchError.message },
-      { status: 500 }
-    );
+    return { ok: false, error: fetchError.message, members_reported: 0 };
   }
 
   // ── 2. Nothing new → send nothing ──────────────────────────────────────────
   if (!rows || rows.length === 0) {
     console.log("[cron/usaf-report] No new members to report.");
-    return Response.json({ ok: true, members_reported: 0 });
+    return { ok: true, members_reported: 0 };
   }
 
   const members = rows as unknown as MemberRow[];
@@ -201,10 +186,7 @@ export async function GET(request: NextRequest) {
     // Do NOT stamp usaf_reported_at — leave the members unreported so the next
     // run retries them rather than silently dropping a member from tracking.
     console.error("[cron/usaf-report] Resend error:", sendError);
-    return Response.json(
-      { ok: false, error: sendError.message },
-      { status: 500 }
-    );
+    return { ok: false, error: sendError.message, members_reported: 0 };
   }
 
   // ── 4. Mark the reported members so they're never re-sent ──────────────────
@@ -229,5 +211,5 @@ export async function GET(request: NextRequest) {
   console.log(
     `[cron/usaf-report] Done. Reported ${count} new ${memberWord} to ${recipient}.`
   );
-  return Response.json({ ok: true, members_reported: count });
+  return { ok: true, members_reported: count };
 }

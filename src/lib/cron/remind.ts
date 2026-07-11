@@ -1,4 +1,3 @@
-import type { NextRequest } from "next/server";
 import { createServiceClient } from "@/lib/supabase";
 import { Resend } from "resend";
 import { ObservationReminder, subject } from "@/emails/ObservationReminder";
@@ -21,16 +20,10 @@ type ObservationRow = {
   created_at: string;
 };
 
-// Vercel invokes cron jobs via GET with an Authorization header containing
-// the CRON_SECRET env var as a Bearer token. We reject anything else.
-export async function GET(request: NextRequest) {
-  const authHeader = request.headers.get("authorization");
-  const cronSecret = process.env.CRON_SECRET;
-
-  if (!cronSecret || authHeader !== `Bearer ${cronSecret}`) {
-    return new Response("Unauthorized", { status: 401 });
-  }
-
+// ~24h-before reminder pass for tomorrow's observation visits. Extracted
+// unchanged from the former standalone /api/cron/remind route — see
+// src/app/api/cron/emails/route.ts for the consolidated entry point.
+export async function runRemindPass() {
   // ── 1. Compute tomorrow's date in UTC ──────────────────────────────────────
   // The cron fires at noon UTC (0 12 * * *). Using UTC dates avoids any
   // timezone ambiguity when matching against visit_date values in Supabase,
@@ -51,15 +44,12 @@ export async function GET(request: NextRequest) {
 
   if (fetchError) {
     console.error("[cron/remind] Supabase fetch error:", fetchError);
-    return Response.json(
-      { ok: false, error: fetchError.message },
-      { status: 500 }
-    );
+    return { ok: false, error: fetchError.message, reminders_sent: 0 };
   }
 
   if (!rows || rows.length === 0) {
     console.log(`[cron/remind] No unreminded visits for ${tomorrowStr}`);
-    return Response.json({ ok: true, reminders_sent: 0 });
+    return { ok: true, reminders_sent: 0 };
   }
 
   const typedRows = rows as ObservationRow[];
@@ -144,5 +134,5 @@ export async function GET(request: NextRequest) {
   console.log(
     `[cron/remind] Done. ${remindersSent} reminder(s) sent for ${tomorrowStr}.`
   );
-  return Response.json({ ok: true, reminders_sent: remindersSent });
+  return { ok: true, reminders_sent: remindersSent };
 }
