@@ -1,12 +1,24 @@
 "use server";
 
 import { redirect } from "next/navigation";
+import { Resend } from "resend";
 import { createSessionClient } from "@/lib/supabase-server";
 import {
   MembershipFormData,
   MEMBERSHIP_SEASON,
 } from "@/lib/member-types";
 import { validateMembershipForm } from "@/lib/membership-validation";
+import { MembershipConfirmation, subject as confirmationSubject } from "@/emails/MembershipConfirmation";
+import { MembershipNotification, subject as notificationSubject } from "@/emails/MembershipNotification";
+import type { WeaponClass } from "@/lib/member-types";
+
+// Weapon-specific staff routing, mirroring src/app/observe/actions.ts.
+const WEAPON_EMAILS: Record<WeaponClass, string> = {
+  "foil-youth": "dmfcfoil@gmail.com",
+  "foil-adult": "dmfcfoil@gmail.com",
+  epee: "dmfcepee@gmail.com",
+  saber: "dmfcsaber@gmail.com",
+};
 
 // Enroll a new member (no profileId) or update an existing member owned by the
 // signed-in account (profileId given). The login is always recorded as the
@@ -261,6 +273,60 @@ export async function submitMembershipForm(
 
   if (completeError) {
     return { ok: false, error: completeError.message };
+  }
+
+  // 6. Send confirmation email (non-fatal on failure — enrollment already
+  // succeeded and saved above). Only on first enrollment: an edit isn't
+  // "signing up" again, and re-sending would misreport unchanged
+  // *_signed_at timestamps as freshly signed.
+  if (!profileId) {
+    try {
+      const resend = new Resend(process.env.RESEND_API_KEY);
+      const FROM = "Des Moines Fencing Club <noreply@emails.desmoinesfencingclub.org>";
+      const athleteName = `${data.first_name} ${data.last_name}`;
+      const submittedAt = new Date().toISOString();
+
+      // Notification to club staff (president + relevant weapon coaches).
+      const weaponRecipients = [
+        ...new Set(data.weapon_classes.map((w) => WEAPON_EMAILS[w])),
+      ];
+      const { error: notifError } = await resend.emails.send({
+        from: FROM,
+        to: ["DMFCPresident@gmail.com", ...weaponRecipients],
+        subject: notificationSubject(athleteName),
+        react: MembershipNotification({
+          athleteName,
+          contactEmail: data.contact_email,
+          contactPhone: data.contact_phone,
+          weaponClasses: data.weapon_classes,
+          season: MEMBERSHIP_SEASON,
+          submittedAt,
+        }),
+      });
+      if (notifError) console.error("[member] Notification send error:", notifError);
+
+      // Confirmation to the member/family.
+      const { error: confirmError } = await resend.emails.send({
+        from: FROM,
+        to: data.contact_email,
+        subject: confirmationSubject(data.first_name),
+        react: MembershipConfirmation({
+          athleteName,
+          season: MEMBERSHIP_SEASON,
+          weaponClasses: data.weapon_classes,
+          rulesOfClubAgreed:
+            data.rules_club_athlete_agreed || data.rules_club_guardian_agreed,
+          athleteCocAgreed: data.athlete_coc_agreed,
+          parentCocAgreed: data.parent_coc_agreed,
+          individualWaiverAgreed: data.individual_waiver_agreed,
+          maappAgreed: data.maapp_agreed,
+          photoReleaseAgreed: data.photo_release_agreed,
+        }),
+      });
+      if (confirmError) console.error("[member] Confirmation send error:", confirmError);
+    } catch (emailErr) {
+      console.error("[member] Confirmation email error:", emailErr);
+    }
   }
 
   return { ok: true };
