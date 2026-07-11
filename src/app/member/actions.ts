@@ -63,6 +63,17 @@ export async function submitMembershipForm(
     guardian_relationship: data.guardian_relationship || null,
     guardian_phone: data.guardian_phone || null,
     membership_season: MEMBERSHIP_SEASON,
+    // citizenship_country otherwise silently defaults to 'US' at the DB level
+    // (see 20260703_usaf_citizenship_fields.sql) even for a self-reported
+    // non-citizen, which would report a wrong ISO code to USA Fencing without
+    // anyone noticing. Flag it with an invalid sentinel instead so it surfaces
+    // as a visible error at USAF upload time, prompting the president to
+    // resolve the fencer's real country code by hand. Only seeded on initial
+    // enrollment (never on edit) so a later self-service edit can't clobber
+    // an admin's manual correction back to "!" or the wrong default.
+    ...(!profileId
+      ? { citizenship_country: data.usa_citizen ? "US" : "!" }
+      : {}),
     // enrollment_complete is intentionally NOT set here. It only flips to
     // true once the emergency-contact, medical, and waiver writes below all
     // succeed (see step 5) — otherwise a member whose waiver write failed
