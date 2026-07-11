@@ -2,10 +2,12 @@ import { ReactNode, ComponentPropsWithoutRef } from "react";
 import Link from "next/link";
 
 type Variant = "primary" | "secondary";
+type ArrowDirection = "right" | "left" | "none";
 
 type ButtonAsButton = {
   as?: "button";
   variant?: Variant;
+  arrow?: ArrowDirection;
   children: ReactNode;
 } & ComponentPropsWithoutRef<"button">;
 
@@ -13,6 +15,7 @@ type ButtonAsLink = {
   as: "link";
   href: string;
   variant?: Variant;
+  arrow?: ArrowDirection;
   children: ReactNode;
 } & Omit<ComponentPropsWithoutRef<typeof Link>, "href">;
 
@@ -28,29 +31,31 @@ const variantStyles: Record<Variant, string> = {
 };
 
 export function Button(props: ButtonProps) {
-  const { variant = "primary", children, className = "" } = props as
+  const { variant = "primary", arrow = "right", children, className = "" } = props as
     | (ButtonAsButton & { className?: string })
     | (ButtonAsLink & { className?: string });
 
   const classes = `${baseStyles} ${variantStyles[variant]} ${className}`;
 
   if (props.as === "link") {
-    const { as: _as, variant: _v, children: _c, className: _cn, ...rest } =
+    const { as: _as, variant: _v, arrow: _ar, children: _c, className: _cn, ...rest } =
       props;
     return (
       <Link className={classes} {...rest}>
+        {arrow === "left" && <span aria-hidden="true">←</span>}
         {children}
-        <span aria-hidden="true">→</span>
+        {arrow === "right" && <span aria-hidden="true">→</span>}
       </Link>
     );
   }
 
-  const { as: _as, variant: _v, children: _c, className: _cn, ...rest } =
+  const { as: _as, variant: _v, arrow: _ar, children: _c, className: _cn, ...rest } =
     props;
   return (
     <button className={classes} {...rest}>
+      {arrow === "left" && <span aria-hidden="true">←</span>}
       {children}
-      <span aria-hidden="true">→</span>
+      {arrow === "right" && <span aria-hidden="true">→</span>}
     </button>
   );
 }

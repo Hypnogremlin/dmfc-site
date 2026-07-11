@@ -1,0 +1,129 @@
+<!--
+  Des Moines Fencing Club — Magic Link (passwordless sign-in) email.
+
+  SOURCE OF TRUTH. This file is the canonical template. It is deployed to the
+  hosted Supabase project as config-as-code:
+
+      supabase/config.toml -> [auth.email.template.magic_link].content_path
+      npx supabase config push   (review the diff, confirm)
+
+  Do NOT edit the copy in the Supabase Dashboard directly — a later `config push`
+  would overwrite it. Edit here, then push.
+
+  {{ .ConfirmationURL }} is a Supabase/GoTrue Go-template variable, substituted at
+  send time with the one-time sign-in link (routes through Supabase's /auth/v1/verify
+  and then redirects to the app's emailRedirectTo, i.e. /auth/callback).
+
+  Branding mirrors src/emails/ObservationConfirmation.tsx so all club email is
+  visually consistent. Email-safe: table layout, fully-inlined styles, no external CSS.
+-->
+<!DOCTYPE html>
+<html lang="en" xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="x-apple-disable-message-reformatting" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <title>Sign in to Des Moines Fencing Club</title>
+  </head>
+  <body style="margin:0; padding:0; background-color:#f5f5f5; font-family:-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;">
+    <!-- Preheader (hidden inbox preview text) -->
+    <div style="display:none; max-height:0; overflow:hidden; font-size:1px; line-height:1px; color:#f5f5f5; opacity:0;">
+      Your one-time sign-in link for the Des Moines Fencing Club member area.
+    </div>
+
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#f5f5f5;">
+      <tr>
+        <td align="center" style="padding:0;">
+          <!-- Card -->
+          <table role="presentation" width="600" cellpadding="0" cellspacing="0" border="0" style="width:600px; max-width:600px; margin:32px auto; background-color:#ffffff; border-radius:4px; overflow:hidden;">
+
+            <!-- Header band -->
+            <tr>
+              <td align="center" style="background-color:#680482; padding:28px 40px;">
+                <img src="https://dmfc-site.vercel.app/logo.png"
+                     alt="Des Moines Fencing Club"
+                     width="96" height="96"
+                     style="display:block; margin:0 auto 12px; width:96px; height:96px; border:0; outline:none; text-decoration:none;" />
+                <p style="margin:0; color:rgba(255,255,255,0.85); font-size:12px; font-weight:700; letter-spacing:0.12em; text-transform:uppercase;">
+                  Member Sign-In
+                </p>
+              </td>
+            </tr>
+
+            <!-- Body -->
+            <tr>
+              <td style="padding:32px 40px;">
+                <p style="margin:0 0 12px; font-size:18px; font-weight:600; color:#1a1a1a;">
+                  Sign in to your account
+                </p>
+                <p style="margin:0 0 28px; font-size:15px; color:#444444; line-height:1.6;">
+                  Click the button below to sign in to the Des Moines Fencing Club member
+                  area. No password needed — this link does it all.
+                </p>
+
+                <!-- Bulletproof button: white text on brand purple -->
+                <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:0 0 28px;">
+                  <tr>
+                    <td align="center" bgcolor="#680482" style="border-radius:4px;">
+                      <a href="{{ .ConfirmationURL }}"
+                         style="display:inline-block; padding:14px 32px; font-size:15px; font-weight:700; color:#ffffff; text-decoration:none; border-radius:4px; letter-spacing:0.02em;">
+                        Sign In &rarr;
+                      </a>
+                    </td>
+                  </tr>
+                </table>
+
+                <p style="margin:0 0 24px; font-size:13px; color:#666666; line-height:1.6;">
+                  This link is good for one sign-in and expires in 60 minutes.
+                </p>
+
+                <!-- Brass rule -->
+                <hr style="border:none; border-top:1px solid #eeeeee; margin:28px 0;" />
+
+                <!-- Fallback -->
+                <p style="margin:0 0 8px; font-size:11px; font-weight:700; letter-spacing:0.12em; text-transform:uppercase; color:#1a1a1a;">
+                  Button not working?
+                </p>
+                <p style="margin:0 0 8px; font-size:14px; color:#444444; line-height:1.6;">
+                  Copy and paste this link into your browser:
+                </p>
+                <p style="margin:0 0 4px; font-size:13px; line-height:1.5; word-break:break-all;">
+                  <a href="{{ .ConfirmationURL }}" style="color:#680482;">{{ .ConfirmationURL }}</a>
+                </p>
+
+                <hr style="border:none; border-top:1px solid #eeeeee; margin:28px 0;" />
+
+                <!-- Safety note -->
+                <p style="margin:0; font-size:13px; color:#666666; line-height:1.6;">
+                  If you didn&rsquo;t request this email, you can safely ignore it — no one can
+                  access your account without this link.
+                </p>
+
+                <p style="margin:24px 0 4px; font-size:14px; color:#444444; line-height:1.6;">
+                  See you on the strip,
+                </p>
+                <p style="margin:0; font-size:14px; font-weight:700; color:#444444; line-height:1.6;">
+                  The Des Moines Fencing Club
+                </p>
+              </td>
+            </tr>
+
+            <!-- Footer band -->
+            <tr>
+              <td style="padding:20px 40px; background-color:#f5f5f5; border-top:1px solid #e5e5e5;">
+                <p style="margin:0; font-size:12px; color:#999999; line-height:1.6;">
+                  West Des Moines Christian Church &middot; 4501 Mills Civic Parkway &middot; West Des Moines, IA 50265
+                </p>
+                <p style="margin:0; font-size:12px; color:#999999; line-height:1.6;">
+                  Questions? <a href="mailto:DMFCPresident@gmail.com" style="color:#680482;">DMFCPresident@gmail.com</a>
+                </p>
+              </td>
+            </tr>
+
+          </table>
+        </td>
+      </tr>
+    </table>
+  </body>
+</html>
