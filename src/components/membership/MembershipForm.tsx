@@ -942,16 +942,16 @@ function Step3EC2({
 
       <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
         <TextField
-          id="ec2_last_name"
-          label="Last Name"
-          value={data.ec2_last_name}
-          onChange={(v) => onChange("ec2_last_name", v)}
-        />
-        <TextField
           id="ec2_first_name"
           label="First Name"
           value={data.ec2_first_name}
           onChange={(v) => onChange("ec2_first_name", v)}
+        />
+        <TextField
+          id="ec2_last_name"
+          label="Last Name"
+          value={data.ec2_last_name}
+          onChange={(v) => onChange("ec2_last_name", v)}
         />
       </div>
 
