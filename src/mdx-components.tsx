@@ -1,6 +1,8 @@
 import type { MDXComponents } from "mdx/types";
 import Link from "next/link";
 import type { ComponentPropsWithoutRef } from "react";
+import { MdxImage } from "@/components/mdx/MdxImage";
+import { PhotoGrid } from "@/components/mdx/PhotoGrid";
 
 // Maps native MDX-rendered HTML elements to design-system-aware variants so
 // authored Markdown inherits the site's editorial typography without needing
@@ -76,6 +78,17 @@ export function useMDXComponents(
     hr: () => (
       <hr className="my-10 border-0 h-px bg-rule" />
     ),
+    // Markdown images (`![alt](/path "caption")`) get build-time sizing and
+    // next/image optimization. PhotoGrid is registered by name so MDX entries
+    // can drop in a gallery without an import statement.
+    img: ({ src, alt, title }: ComponentPropsWithoutRef<"img">) => (
+      <MdxImage
+        src={typeof src === "string" ? src : undefined}
+        alt={alt}
+        title={title}
+      />
+    ),
+    PhotoGrid,
     code: (props) => (
       <code
         className="font-mono text-[0.92em] bg-purple-50 px-1.5 py-0.5 rounded"

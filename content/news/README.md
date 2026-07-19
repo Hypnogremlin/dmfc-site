@@ -32,12 +32,65 @@ already linked from flyers, social posts, or external sites.
 
 ## Images
 
-Put image files in `public/news-images/` and reference them with a
-leading slash in Markdown:
+### 1. Prepare the files
+
+Don't copy photos straight off a phone into `public/` — they're 2–3MB
+each and would ship to every visitor. Run them through the prep script
+first (from the project root):
+
+```
+node scripts/prep-news-photos.mjs <slug> <photo files...>
+```
+
+For example:
+
+```
+node scripts/prep-news-photos.mjs iowa-games-2026 ~/Pictures/iowa/*.jpg
+```
+
+This resizes each photo to web size and writes optimized full-color
+`.webp` files into `public/news-images/<slug>/`. It's compression only —
+any visual treatment (like the B&W look used elsewhere on the site) is
+applied with CSS at the component level, never baked into the files.
+Originals are untouched; keep them wherever they live, but don't commit
+them into `public/`.
+
+### 2. Single images
+
+Reference prepared images with a leading slash in Markdown. The quoted
+title is optional and renders as a caption:
 
 ```markdown
-![Caption](/news-images/your-file.jpg)
+![Alt text for screen readers](/news-images/your-slug/photo.webp "Optional caption")
 ```
+
+### 3. Photo galleries
+
+For a set of photos (tournament recaps etc.), use the `PhotoGrid`
+component — available in every entry, no import needed. It renders a
+thumbnail grid; clicking a photo opens a full-size lightbox:
+
+```mdx
+<PhotoGrid
+  photos={[
+    {
+      src: "/news-images/your-slug/photo-1.webp",
+      alt: "What the photo shows, for screen readers.",
+      caption: "Optional caption shown in the lightbox.",
+    },
+    {
+      src: "/news-images/your-slug/photo-2.webp",
+      alt: "Every photo needs meaningful alt text.",
+    },
+  ]}
+/>
+```
+
+`alt` is required. `caption` is optional. Image dimensions are read
+automatically at build time — you never need to specify them.
+
+See `2026-07-18-iowa-games-recap.mdx` for a real example of the full
+pattern.
 
 ## Files prefixed with `_`
 
