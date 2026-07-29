@@ -138,6 +138,12 @@ export async function runUsafReportPass() {
         "member_waivers(season_year, individual_waiver_agreed, maapp_agreed, rules_club_athlete_agreed, athlete_coc_agreed)"
     )
     .eq("enrollment_complete", true)
+    // Guardian rows (person_type = 'guardian') default enrollment_complete
+    // to false, so they're already excluded above — but this path submits
+    // members to USA Fencing, the highest-consequence write in the
+    // codebase, so it must not rely on that being an accident. See
+    // VOLUNTEERS.md "Blast radius of person_type".
+    .eq("person_type", "athlete")
     .is("usaf_reported_at", null)
     .order("created_at", { ascending: true });
 
@@ -194,6 +200,10 @@ export async function runUsafReportPass() {
   const { error: updateError } = await supabase
     .from("profiles")
     .update({ usaf_reported_at: reportedAt })
+    // Redundant with the fetch filter above (these ids only ever came from
+    // athlete rows), but the flag this sets is what marks a member reported
+    // to USA Fencing — belt-and-suspenders here costs nothing.
+    .eq("person_type", "athlete")
     .in(
       "id",
       members.map((m) => m.id)

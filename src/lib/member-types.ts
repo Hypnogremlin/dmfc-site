@@ -3,26 +3,37 @@ export type SexAtBirth = "male" | "female";
 export type ShirtSize = "YXS" | "YS" | "YM" | "YL" | "YXL" | "XS" | "S" | "M" | "L" | "XL" | "XXL" | "XXXL";
 export type SignerType = "athlete" | "guardian";
 
+// `profiles` rows are either a fencer ("athlete") or a lazily-created adult
+// record standing in for a parent/guardian who has no login-independent
+// identity of their own (see VOLUNTEERS.md D2/D3). Guardian rows exist only
+// to be a named volunteer signup — they carry no birthday, address, or
+// waiver data, which is why the athlete-only columns below are nullable.
+export type PersonType = "athlete" | "guardian";
+
 export type Profile = {
   id: string;
   // The login (auth.users.id) that owns this member. One owner may have many
   // member profiles (a family). For pre-family rows this equals id.
   account_owner_id: string;
+  person_type: PersonType;
   first_name: string;
   last_name: string;
-  birthday: string;
+  // Nullable because a guardian row (person_type = 'guardian') has no
+  // birthday — see the profiles_athlete_required_fields CHECK in the M1
+  // migration, which still enforces NOT NULL-equivalent for athletes.
+  birthday: string | null;
   usa_citizen: boolean;
-  sex_at_birth: SexAtBirth;
+  sex_at_birth: SexAtBirth | null;
   gender_identity: string | null;
   weapon_classes: WeaponClass[];
   shirt_size: ShirtSize | null;
   contact_email: string;
   contact_phone: string;
-  address_line1: string;
+  address_line1: string | null;
   address_line2: string | null;
-  city: string;
-  state: string;
-  zip_code: string;
+  city: string | null;
+  state: string | null;
+  zip_code: string | null;
   guardian_first_name: string | null;
   guardian_last_name: string | null;
   guardian_relationship: string | null;
@@ -44,12 +55,22 @@ export type Profile = {
 // Lightweight shape for the dashboard roster (one row per member on an account).
 export type MemberSummary = {
   id: string;
+  person_type: PersonType;
   first_name: string;
   last_name: string;
-  birthday: string;
+  birthday: string | null;
   weapon_classes: WeaponClass[];
   membership_season: string | null;
   enrollment_complete: boolean;
+  // Only populated on minor athlete rows; used to resolve the dashboard
+  // greeting to the guardian's name rather than the child's. See D2/D3.
+  guardian_first_name: string | null;
+  // On a guardian row, seeded from auth.users.email at lazy creation time
+  // (VOLUNTEERS.md D3) — used to pick out "the guardian who is actually
+  // signed in right now" when an account holds more than one. On an
+  // athlete row this is the athlete's own contact email and unused for
+  // that purpose.
+  contact_email: string;
 };
 
 export type EmergencyContact = {
