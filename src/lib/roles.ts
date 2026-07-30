@@ -68,6 +68,11 @@ export async function getAccountRole(): Promise<AccountRole> {
  * know the difference between "denied" (returns `false`) and "couldn't
  * tell" (throws), and collapsing the latter into `false` would look
  * identical to a legitimate denial in the logs.
+ *
+ * Do NOT wrap a call to this in `try/catch` and treat a caught error as
+ * "not authorized" — that's true today, but a `catch` block written to
+ * swallow the error and continue is exactly the shape of bug that turns a
+ * fail-closed exception into a fail-open bypass. Let it propagate.
  */
 export async function hasRoleAtLeast(minRole: AccountRole): Promise<boolean> {
   const role = await getAccountRole();
@@ -83,6 +88,14 @@ export async function hasRoleAtLeast(minRole: AccountRole): Promise<boolean> {
  * redirect rather than a generic `/member` bounce that would mask the real
  * cause, and a DB error should surface as an error rather than be
  * swallowed into a silent redirect.
+ *
+ * NEVER wrap `await assertRole(...)` in `try/catch`. In Next.js, `redirect()`
+ * signals by throwing a `NEXT_REDIRECT` error, and the "not authenticated" /
+ * "DB error" paths above signal by throwing too — this function has no
+ * other way to stop execution. A `try/catch` around it swallows the denial
+ * (the redirect) and the failure (the exception) alike, and control falls
+ * through into the privileged code that follows as if authorization
+ * succeeded. That converts a deny into a silent allow.
  */
 export async function assertRole(minRole: AccountRole): Promise<void> {
   const ok = await hasRoleAtLeast(minRole);

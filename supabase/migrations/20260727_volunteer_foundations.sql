@@ -15,7 +15,10 @@
 --
 -- Every statement is idempotent (IF [NOT] EXISTS, DROP ... IF EXISTS before
 -- CREATE, a DO block for the enum), so re-running this file — or the whole
--- migrations folder from scratch — is safe.
+-- migrations folder from scratch — is safe. One exception drives the shape
+-- of Part 3: the auth.users trigger there cannot use a DROP ... IF EXISTS /
+-- CREATE pair, because dropping it requires table ownership that the
+-- SQL Editor's connecting role does not have. See the comment in Part 3.
 
 -- ── Part 1 — public.account_role enum ────────────────────────────────────────
 -- Four values, in this exact declaration order: Postgres enums compare by
@@ -80,10 +83,32 @@ BEGIN
 END;
 $$;
 
-DROP TRIGGER IF EXISTS on_auth_user_created_account_settings ON auth.users;
-CREATE TRIGGER on_auth_user_created_account_settings
-  AFTER INSERT ON auth.users
-  FOR EACH ROW EXECUTE FUNCTION public.handle_new_user_account_settings();
+-- This trigger deliberately does NOT follow the DROP ... IF EXISTS / CREATE
+-- pattern used everywhere else in this file. `CREATE TRIGGER` on a table
+-- only requires the TRIGGER privilege, but `DROP TRIGGER` requires
+-- ownership of the table. `auth.users` is owned by `supabase_auth_admin`,
+-- and the role this file runs as (`postgres`, via the SQL Editor or the
+-- Supabase MCP) is not a member of that role — it holds TRIGGER but not
+-- ownership. A plain `DROP TRIGGER IF EXISTS ... ON auth.users` would
+-- silently succeed on the very first apply (nothing to find, so the
+-- ownership check is never reached) and then fail with "must be owner of
+-- relation users" on every re-run once the trigger exists — aborting the
+-- whole file, since the SQL Editor runs it as one transaction. Guarding on
+-- pg_trigger and only ever CREATE-ing avoids needing DROP privileges at all.
+-- Do NOT "normalize" this back to DROP ... IF EXISTS / CREATE.
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_trigger
+    WHERE tgrelid = 'auth.users'::regclass
+      AND tgname  = 'on_auth_user_created_account_settings'
+      AND NOT tgisinternal
+  ) THEN
+    CREATE TRIGGER on_auth_user_created_account_settings
+      AFTER INSERT ON auth.users
+      FOR EACH ROW EXECUTE FUNCTION public.handle_new_user_account_settings();
+  END IF;
+END $$;
 
 -- ── Part 4 — public.has_role_at_least(): the cascade helper ─────────────────
 -- The one place role comparisons happen, so every RLS policy and every

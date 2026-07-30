@@ -37,44 +37,52 @@ function formatSeason(season: string | null): string {
 // lazily-created guardian rows per VOLUNTEERS.md D3), and the first one
 // created on an account is not necessarily the adult who is signed in. This
 // replaces the old `members[0].first_name`, which greeted a fencing parent
-// with their child's first name. Preference order, per VOLUNTEERS.md M1:
-//   1. A guardian profile on the account whose `contact_email` matches the
-//      signed-in login's email; else any guardian profile.
-//   2. An adult (non-minor) athlete profile.
-//   3. `guardian_first_name` captured on any minor athlete's row.
-//   4. No name resolves — the caller falls back to a neutral greeting.
+// with their child's first name.
 //
-// Step 1 checks email before falling back to "just take the first guardian"
-// because, once M3 ships lazy guardian-profile creation, a single account
-// can hold *several* guardian rows — the candidate algorithm in
-// VOLUNTEERS.md explicitly supports two parents (Mom seeded from one
-// child's row, Dad from another) plus a grandparent added via "Someone
-// else…". Picking whichever guardian row happens to sort first by
-// `created_at` would greet the signed-in parent with someone else's name.
-// A guardian row's `contact_email` is seeded from `auth.users.email` at
-// creation (D3), so a case-insensitive match against the signed-in user's
-// email reliably identifies "the guardian who is this login" — a
-// grandparent added through "Someone else…" carries a different email (or
-// none) and won't false-positive.
+// Preference order — deliberately ranked by how *confident* each signal is
+// that the name belongs to the person signed in right now, not just by
+// "guardian beats athlete" or vice versa:
+//   1. A guardian row whose `contact_email` matches the signed-in login
+//      (case-insensitive). Strong signal — a guardian row's contact_email is
+//      seeded from `auth.users.email` at lazy creation time (D3), so this
+//      row *is* the person signed in.
+//   2. An adult (non-minor) athlete profile. Also a strong signal — the
+//      login's own fencing record.
+//   3. Any remaining guardian row. Weak fallback only: once M3 ships lazy
+//      guardian creation, an account can hold *several* guardian rows (two
+//      parents split across siblings' `guardian_*` data, or one added via
+//      "Someone else…" carrying its own email). Falling to an arbitrary one
+//      of those is a guess, not a confirmation — it must lose to tier 2. An
+//      adult athlete's own record is a better answer than "some guardian on
+//      this account" when the account holder also fences.
+//   4. `guardian_first_name` captured on any minor athlete's row.
+//   5. No name resolves — the caller falls back to a neutral greeting.
+//
+// Do not "simplify" this by hoisting the guardian check above the athlete
+// check — that regresses to matching by whichever guardian sorts first,
+// which can greet an adult athlete who owns the account by a different
+// guardian's name entirely (e.g. their spouse's, if hers was added via
+// "Someone else…" with her own email and his athlete profile has no email
+// match to offer).
 function resolveOwnerName(
   members: MemberSummary[],
   userEmail: string | null | undefined
 ): string | null {
   const guardians = members.filter((m) => m.person_type === "guardian");
-  if (guardians.length > 0) {
-    const normalizedUserEmail = userEmail?.toLowerCase();
-    const signedInGuardian = guardians.find(
-      (g) =>
-        normalizedUserEmail &&
-        g.contact_email.toLowerCase() === normalizedUserEmail
-    );
-    return (signedInGuardian ?? guardians[0]).first_name;
-  }
+
+  const normalizedUserEmail = userEmail?.toLowerCase();
+  const signedInGuardian = guardians.find(
+    (g) =>
+      normalizedUserEmail && g.contact_email.toLowerCase() === normalizedUserEmail
+  );
+  if (signedInGuardian) return signedInGuardian.first_name;
 
   const adultAthlete = members.find(
     (m) => m.person_type === "athlete" && !isMinor(m.birthday)
   );
   if (adultAthlete) return adultAthlete.first_name;
+
+  if (guardians.length > 0) return guardians[0].first_name;
 
   const minorWithGuardianName = members.find(
     (m) => m.person_type === "athlete" && m.guardian_first_name

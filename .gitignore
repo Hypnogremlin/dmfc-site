@@ -44,6 +44,7 @@ next-env.d.ts
 # private planning and agent-prompting docs — not for the public repo
 PLAN.md
 VOLUNTEERS.md
+M1-REVIEW.md
 CLAUDE.md
 AGENTS.md
 DESIGN.md
