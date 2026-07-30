@@ -10,8 +10,15 @@
 -- data (relaxing NOT NULLs on `profiles`), so it ships alone and gets its own
 -- review pass.
 --
--- STATUS: NOT yet applied to live. The owner applies this by hand after
--- review — do not run `supabase db push` and do not apply via MCP.
+-- STATUS: APPLIED to live 2026-07-29 via the Supabase MCP (`apply_migration`,
+-- recorded in the remote ledger as `volunteer_foundations`), at the owner's
+-- request and after an independent review pass. Verified post-apply: 110/110
+-- logins backfilled with `account_settings` rows and 110 distinct unsubscribe
+-- tokens, all 45 `profiles` rows reading `person_type = 'athlete'`, six columns
+-- relaxed to nullable, both new constraints and both triggers present, RLS on
+-- with four policies, all three functions created.
+-- Do not run `supabase db push` — local migrations are not reconciled with
+-- remote history.
 --
 -- Every statement is idempotent (IF [NOT] EXISTS, DROP ... IF EXISTS before
 -- CREATE, a DO block for the enum), so re-running this file — or the whole
