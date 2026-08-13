@@ -120,6 +120,9 @@ export async function runUsafReportPass() {
     console.error("[cron/usaf-report] REPORT_RECIPIENT_EMAIL is not set");
     return { ok: false, error: "REPORT_RECIPIENT_EMAIL not configured", members_reported: 0 };
   }
+  // Treasurer CC is optional — the report still sends to the president alone
+  // if it's unset.
+  const treasurerEmail = process.env.REPORT_TREASURER_EMAIL;
 
   const resendApiKey = process.env.RESEND_API_KEY;
   if (!resendApiKey) {
@@ -158,7 +161,7 @@ export async function runUsafReportPass() {
   const filename = `dmfc-usaf-bulk-upload-${today}.csv`;
   const count = members.length;
 
-  // ── 3. Email the CSV to the president ──────────────────────────────────────
+  // ── 3. Email the CSV to the president, cc'd to the treasurer ────────────────
   const resend = new Resend(resendApiKey);
   const FROM =
     "Des Moines Fencing Club <noreply@emails.desmoinesfencingclub.org>";
@@ -167,13 +170,15 @@ export async function runUsafReportPass() {
   const { error: sendError } = await resend.emails.send({
     from: FROM,
     to: recipient,
+    ...(treasurerEmail ? { cc: treasurerEmail } : {}),
     subject: `New DMFC members for USA Fencing tracking — ${today} (${count})`,
     text:
       `${count} new ${memberWord} completed enrollment since the last report.\n\n` +
-      `The attached CSV (${filename}) is formatted for the USA Fencing Club ` +
-      `Manager Bulk Uploader — download it and upload as-is under Roster > ` +
-      `Bulk Uploader > Start a new Upload, membership type "Access". ` +
-      `Each member appears in this report only once.`,
+      `For the President — the attached CSV (${filename}) is formatted for the ` +
+      `USA Fencing Club Manager Bulk Uploader. Download it and upload as-is ` +
+      `under Roster > Bulk Uploader > Start a new Upload, membership type ` +
+      `"Access". Each member appears in this report only once.\n\n` +
+      `For the Treasurer — the attached CSV has the details for your records.`,
     attachments: [
       {
         filename,
@@ -209,7 +214,8 @@ export async function runUsafReportPass() {
   }
 
   console.log(
-    `[cron/usaf-report] Done. Reported ${count} new ${memberWord} to ${recipient}.`
+    `[cron/usaf-report] Done. Reported ${count} new ${memberWord} to ${recipient}` +
+      (treasurerEmail ? ` (cc ${treasurerEmail}).` : `.`)
   );
   return { ok: true, members_reported: count };
 }
