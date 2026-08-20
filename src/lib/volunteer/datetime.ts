@@ -1,0 +1,28 @@
+// Combines separate date/time form inputs into a timestamptz-ready ISO
+// string, and splits one back apart for editing. Paired date+time inputs
+// were chosen over a single `datetime-local` input because this codebase has
+// no `datetime-local` precedent and that input type renders inconsistently
+// across browsers; a plain `type="date"` input is already used for the
+// membership form's birthday field (src/components/membership/MembershipForm.tsx).
+//
+// `new Date(`${date}T${time}`)` (no trailing "Z") is parsed by JS as local
+// wall-clock time, which is what a coach filling out "this shift starts at
+// 9am" means — .toISOString() then converts that to the UTC value Postgres
+// stores.
+
+export function combineDateTime(date: string, time: string): string | null {
+  if (!date) return null;
+  const parsed = new Date(`${date}T${time || "00:00"}`);
+  if (isNaN(parsed.getTime())) return null;
+  return parsed.toISOString();
+}
+
+export function splitDateTime(iso: string | null): { date: string; time: string } {
+  if (!iso) return { date: "", time: "" };
+  const d = new Date(iso);
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return {
+    date: `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`,
+    time: `${pad(d.getHours())}:${pad(d.getMinutes())}`,
+  };
+}
