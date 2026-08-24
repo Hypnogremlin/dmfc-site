@@ -20,22 +20,42 @@ Files are named by date. Apply in order.
 | `20260711_signup_invite_tracking.sql` | Yes — applied 2026-07-11 via the Supabase MCP (`apply_migration`). Recorded in the remote ledger as `20260711160559_signup_invite_tracking`. |
 | `20260727_volunteer_foundations.sql` | Yes — applied 2026-07-29 via the Supabase MCP (`apply_migration`) after an independent review pass. Recorded in the remote ledger as `volunteer_foundations`. Verified post-apply (see the file's STATUS header). **Note:** Part 3's `auth.users` trigger uses a `pg_trigger`-guarded conditional `CREATE` rather than this folder's usual `DROP ... IF EXISTS` / `CREATE` pattern — `DROP TRIGGER` needs ownership of `auth.users`, which `postgres` does not have. Do not normalize it. |
 | `20260820_volunteer_staff_crud.sql` | Yes — applied 2026-08-20 via the Supabase MCP (`apply_migration`, recorded in the remote ledger as `volunteer_staff_crud`). M2 of the volunteer system: `events` + `volunteer_slots` tables, their RLS policies, an `events_updated_at` trigger (reusing `set_updated_at()` from `20260616_phase2_membership.sql`), and the two `REVOKE`s owed from M1. Verified post-apply: `profiles`/`account_settings` row counts unchanged (57/337); both new tables created empty; 5 policies on `events` and 4 on `volunteer_slots` (no missing `DELETE` policy); both `REVOKE`s confirmed via `has_function_privilege()` (not just the statement's exit status — see the lesson logged below); `has_role_at_least` still callable as required. `get_advisors` shows no findings beyond the pre-existing baseline and the already-accepted "multiple permissive policies" pattern `account_settings` already carries from M1. |
+| `20260820_volunteer_signups.sql` | Yes — applied 2026-08-23 via the Supabase MCP (`apply_migration`, recorded in the remote ledger as `volunteer_signups`). M3 of the volunteer system: `volunteer_signups` table, its two RLS SELECT policies, the `claim_volunteer_slot`/`cancel_volunteer_signup` RPCs, and `slot_fill_counts()`. Verified post-apply: `profiles`/`account_settings`/`events`/`volunteer_slots` row counts unchanged (57/365/0/0, elevated count 1); `volunteer_signups` created empty; all 11 policies present across `events`/`volunteer_slots`/`volunteer_signups`. **Post-apply verification caught that `anon` could execute all three new `SECURITY DEFINER` functions despite their `REVOKE ALL ... FROM PUBLIC` statements** — see `20260823_volunteer_revoke_anon_function_execute.sql` and the corrected lesson below; this is not a flaw specific to this file; it's a project-wide gap in every prior migration's `REVOKE` pattern that only became visible here because it was the first time post-apply verification specifically checked `anon` (not just `authenticated`) against a *newly written* function. |
+| `20260823_volunteer_events_restrict_anon.sql` | Yes — applied 2026-08-23 via the Supabase MCP (`apply_migration`, recorded in the remote ledger as `volunteer_events_restrict_anon`). Re-creates all 5 `events` and all 4 `volunteer_slots` policies (live since M2) with `TO authenticated` added — the original M2 migration wrote every policy with no `TO` clause, which in Postgres defaults to `PUBLIC` (every role, including `anon`). The 4 coach-gated policies per table were safe regardless (`has_role_at_least('coach')` is false for an anonymous request), but the two "published = true" SELECT policies had no role check at all, so published events/slots were genuinely readable by anon over `/rest/v1`. No table/column/data change. Verified post-apply: all 9 policies now show `roles = {authenticated}` in `pg_policies`. |
+| `20260823_volunteer_revoke_anon_function_execute.sql` | Yes — applied 2026-08-23 via the Supabase MCP (`apply_migration`, recorded in the remote ledger as `volunteer_revoke_anon_function_execute`), immediately after `20260820_volunteer_signups.sql` in the same session, as a same-day correction to what that file's own `REVOKE` statements failed to do. See "REVOKE FROM PUBLIC does not work on this project" below — this is the actually-important lesson superseding the one previously recorded here. |
 
 Every file is written to be idempotent, so re-running an already-applied file (or the whole folder from scratch) is safe.
 
-## One stray ledger entry with no local file
+## REVOKE FROM PUBLIC does not work on this project — always name the role
 
-The remote ledger contains **`revoke_trigger_function_rpc`** (applied 2026-07-29) with no corresponding file here. That is deliberate: **it is a no-op and should not be reproduced.**
+**Corrected 2026-08-23. The note this replaces had the lesson backwards; do not revert to it.**
 
-It attempted `REVOKE EXECUTE ON FUNCTION ... FROM anon, authenticated` on the two trigger functions from `20260727_volunteer_foundations.sql`. Postgres grants `EXECUTE` on a new function to the `PUBLIC` pseudo-role automatically, so `anon` and `authenticated` never held a direct grant — the revoke removed nothing, and because revoking a privilege a role does not hold is a no-op rather than an error, it reported success. Verified afterwards: `has_function_privilege()` still returned true for both roles on both functions.
-
-The correct form names `PUBLIC`, and is **pending — to be folded into M2's migration** rather than spent as its own production write (see `VOLUNTEERS.md`):
+This project's public-schema default privileges grant `EXECUTE` on every *newly created* function directly to `anon`, `authenticated`, and `service_role` — confirmed live via:
 
 ```sql
-REVOKE EXECUTE ON FUNCTION public.handle_new_user_account_settings() FROM PUBLIC;
-REVOKE EXECUTE ON FUNCTION public.prevent_self_role_change()         FROM PUBLIC;
+SELECT defaclrole::regrole, defaclobjtype, defaclacl
+FROM pg_default_acl WHERE defaclnamespace = 'public'::regnamespace;
+-- postgres | f | {postgres=X/postgres,anon=X/postgres,authenticated=X/postgres,service_role=X/postgres}
 ```
 
-Do **not** revoke `public.has_role_at_least(account_role)` — it is referenced by the `account_settings` RLS policies, and a function used in a policy is evaluated as the *querying* role, so revoking it turns an ordinary member's `SELECT` into a permission error instead of an empty result.
+That grant is made **directly to each role**, not inherited through the `PUBLIC` pseudo-role. `REVOKE EXECUTE ON FUNCTION ... FROM PUBLIC` — the pattern used in every migration in this feature through 2026-08-23 — therefore does **nothing** to `anon`'s or `authenticated`'s ability to call a function. It only removes a grant that was never actually the one in effect.
 
-Lesson worth keeping: `REVOKE` reports success when it removes nothing. Always verify a permission change with `has_function_privilege()` / `has_table_privilege()` rather than trusting the statement's exit status.
+This was discovered when `20260820_volunteer_signups.sql`'s three new `SECURITY DEFINER` functions were all still `anon`-executable immediately after their `REVOKE ALL ... FROM PUBLIC` statements ran — confirmed via `has_function_privilege('anon', <oid>, 'EXECUTE')` returning `true` and via `pg_proc.proacl` showing an explicit `anon=X/postgres` entry. Fixed same-day by `20260823_volunteer_revoke_anon_function_execute.sql`, which names the role directly:
+
+```sql
+REVOKE EXECUTE ON FUNCTION public.claim_volunteer_slot(uuid, uuid, text, uuid) FROM anon;
+REVOKE EXECUTE ON FUNCTION public.cancel_volunteer_signup(uuid) FROM anon;
+REVOKE EXECUTE ON FUNCTION public.slot_fill_counts(uuid) FROM anon;
+```
+
+**Going forward, every `REVOKE` on a function meant to be non-public must name `anon` (and `authenticated`, for a function no signed-in member should call directly, like a trigger function) explicitly — never `PUBLIC` alone.** `REVOKE ... FROM PUBLIC` is harmless to also include for defense-in-depth against a future project without this default-privilege quirk, but it cannot be the *only* statement.
+
+### The `revoke_trigger_function_rpc` ledger entry was correctly diagnosed and does have effect — the opposite of what this section used to say
+
+The remote ledger contains **`revoke_trigger_function_rpc`** (applied 2026-07-29) with no corresponding file here. The previous version of this note called it a no-op and told M2 to use `FROM PUBLIC` instead — that guidance was itself the bug, and it is exactly what let the M3 gap above happen.
+
+Re-verified 2026-08-23: `handle_new_user_account_settings()` and `prevent_self_role_change()` (the two trigger functions this entry targeted) currently have **neither `anon` nor `authenticated`** in `pg_proc.proacl` — both roles are genuinely blocked. That is the ledger entry's `REVOKE EXECUTE ON FUNCTION ... FROM anon, authenticated` working exactly as intended; whatever check found it a "no-op" at the time was mistaken. The `REVOKE ... FROM PUBLIC` statements later added in M2's Part 5 for these same two functions were redundant — harmless, but they were not what actually closed the gap.
+
+Do **not** revoke `public.has_role_at_least(account_role)` — it is referenced by RLS policies across every table in this feature, and a function used in a policy is evaluated as the *querying* role, so revoking it turns an ordinary member's `SELECT` into a permission error instead of an empty result. It is expected to remain `anon`- and `authenticated`-executable; `get_advisors` will flag this and it is an accepted, understood finding, not a bug.
+
+Lesson worth keeping, still true: `REVOKE` reports success when it removes nothing. Always verify a permission change with `has_function_privilege()` for **every role that might hold the grant** — checking only `authenticated` (as every verification pass through M2 did) is exactly how the `anon` gap above went unnoticed for as long as it did.
