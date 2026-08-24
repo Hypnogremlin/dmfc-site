@@ -8,6 +8,8 @@ import { Card } from "@/components/Card";
 import { signOut } from "./actions";
 import type { MemberSummary, WeaponClass } from "@/lib/member-types";
 import { isMinor } from "@/lib/age";
+import { hasRoleAtLeast } from "@/lib/roles";
+import { upcomingCutoffIso } from "@/lib/volunteer/datetime";
 import Link from "next/link";
 
 export const metadata: Metadata = {
@@ -96,9 +98,13 @@ type PortalLink = {
   href: string;
   label: string;
   description: string;
+  badge?: number;
 };
 
-const portalLinks: PortalLink[] = [
+// Static entries. Volunteer (with its unread badge) and Staff dashboard
+// (role-gated) are appended dynamically in the component below, since both
+// depend on data this array can't see.
+const staticPortalLinks: PortalLink[] = [
   {
     href: "/classes",
     label: "Class schedule",
@@ -151,6 +157,56 @@ export default async function MemberDashboardPage() {
   const guardians = members.filter((m) => m.person_type === "guardian");
 
   const ownerName = resolveOwnerName(members, user.email);
+
+  // D10: "new" is any published request the member hasn't seen since it went
+  // live. Compared against published_at, not created_at — a coach commonly
+  // creates a draft days before publishing it (M2's whole draft/publish
+  // split exists for this), and keying off created_at meant the badge never
+  // fired for the normal case of "drafted before your last visit, published
+  // after it." NULL (never visited /member/volunteer) counts everything
+  // published as new, rather than nothing — a fresh account shouldn't have
+  // to guess whether requests already exist. Also excludes events that have
+  // already happened, via the same upcomingCutoffIso() the volunteer list
+  // page filters on, so a never-visited account isn't badged with every
+  // request the club has ever published.
+  const [{ data: settings, error: settingsError }, isStaff] = await Promise.all([
+    supabase.from("account_settings").select("volunteer_last_seen_at").eq("id", user.id).maybeSingle(),
+    hasRoleAtLeast("coach"),
+  ]);
+
+  if (settingsError) {
+    throw new Error(settingsError.message);
+  }
+
+  const { count: newVolunteerCount, error: countError } = await supabase
+    .from("events")
+    .select("*", { count: "exact", head: true })
+    .eq("published", true)
+    .gte("starts_at", upcomingCutoffIso())
+    .gt("published_at", settings?.volunteer_last_seen_at ?? "1970-01-01T00:00:00Z");
+
+  if (countError) {
+    throw new Error(countError.message);
+  }
+
+  const portalLinks: PortalLink[] = [
+    {
+      href: "/member/volunteer",
+      label: "Volunteer",
+      description: "Sign up to help out at upcoming events.",
+      badge: newVolunteerCount ?? 0,
+    },
+    ...staticPortalLinks,
+    ...(isStaff
+      ? [
+          {
+            href: "/member/staff/events",
+            label: "Staff dashboard",
+            description: "Create and publish volunteer requests.",
+          },
+        ]
+      : []),
+  ];
 
   return (
     <Section>
@@ -288,8 +344,13 @@ export default async function MemberDashboardPage() {
                 className="group flex items-start justify-between gap-6 py-5 hover:text-purple-700 transition-colors"
               >
                 <div>
-                  <p className="font-semibold text-ink group-hover:text-purple-700 transition-colors">
+                  <p className="font-semibold text-ink group-hover:text-purple-700 transition-colors flex items-center gap-2">
                     {item.label}
+                    {!!item.badge && (
+                      <span className="inline-flex items-center justify-center min-w-[1.5em] h-[1.5em] px-1.5 text-xs font-semibold rounded-full bg-brass text-ink">
+                        {item.badge}
+                      </span>
+                    )}
                   </p>
                   <p className="text-sm text-mute mt-0.5 leading-relaxed">
                     {item.description}

@@ -225,17 +225,44 @@ export async function publishEvent(eventId: string): Promise<ActionResult> {
   return { ok: true };
 }
 
-// Deliberately unguarded against live signups: `volunteer_signups` does not
-// exist until M3, so there is nothing to check yet. volunteer_slots
-// cascade-deletes via its event_id foreign key, so no separate cleanup is
-// needed here.
-//
-// M3 MUST add a "has live signups" guard to this action before it ships —
-// once members can claim slots, an unguarded delete can silently drop
-// someone's commitment with no notice.
+// M3 added volunteer_signups: a slot can now carry live commitments, so an
+// unguarded delete could silently drop someone's plans with no notice. Check
+// for any non-cancelled signup on any of this event's slots before deleting
+// — volunteer_slots itself still cascade-deletes via its event_id foreign
+// key, so no separate slot cleanup is needed once this check passes.
 export async function deleteEvent(eventId: string): Promise<ActionResult> {
   await assertRole("coach");
   const supabase = await createSessionClient();
+
+  const { data: slotRows, error: slotsError } = await supabase
+    .from("volunteer_slots")
+    .select("id")
+    .eq("event_id", eventId);
+
+  if (slotsError) {
+    return { ok: false, error: slotsError.message };
+  }
+
+  const slotIds = (slotRows ?? []).map((s) => s.id as string);
+
+  if (slotIds.length > 0) {
+    const { count, error: signupsError } = await supabase
+      .from("volunteer_signups")
+      .select("*", { count: "exact", head: true })
+      .in("slot_id", slotIds)
+      .is("cancelled_at", null);
+
+    if (signupsError) {
+      return { ok: false, error: signupsError.message };
+    }
+
+    if ((count ?? 0) > 0) {
+      return {
+        ok: false,
+        error: "This event has volunteers already signed up. Cancel their signups before deleting it.",
+      };
+    }
+  }
 
   const { error } = await supabase.from("events").delete().eq("id", eventId);
 

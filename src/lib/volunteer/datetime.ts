@@ -26,3 +26,17 @@ export function splitDateTime(iso: string | null): { date: string; time: string 
     time: `${pad(d.getHours())}:${pad(d.getMinutes())}`,
   };
 }
+
+// ISO cutoff for "still upcoming," used to keep past volunteer events out of
+// the member-facing list and unread badge. Local midnight today, not "now,"
+// so an event starting at 8am doesn't vanish from the list at 9am. Note this
+// runs server-side on Vercel (UTC), not in the club's Central timezone — an
+// event lingers on the list a few extra hours into the following UTC morning
+// rather than disappearing a few hours early. Erring toward showing an event
+// slightly too long is the safer direction; nothing else in this codebase
+// hard-codes a timezone, so this doesn't either.
+export function upcomingCutoffIso(): string {
+  const d = new Date();
+  d.setHours(0, 0, 0, 0);
+  return d.toISOString();
+}

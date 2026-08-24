@@ -33,6 +33,22 @@ export type VolunteerSlot = {
   created_at: string;
 };
 
+// M3. `attended`/`credited_hours` are schema-complete but unused until M4 —
+// nothing in this milestone writes to them (see the M3 migration header).
+export type VolunteerSignup = {
+  id: string;
+  slot_id: string;
+  account_id: string;
+  attendee_profile_id: string | null;
+  attendee_name: string | null;
+  credit_profile_id: string | null;
+  attended: boolean | null;
+  credited_hours: number | null;
+  notes: string | null;
+  created_at: string;
+  cancelled_at: string | null;
+};
+
 // Form-local shape for a slot row that may not be saved yet. `id` is null
 // until the row exists in the DB; `tempId` is always present and stable, so
 // React has a key before a real id is assigned and EventForm/SlotEditor can
