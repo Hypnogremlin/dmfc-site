@@ -141,18 +141,33 @@ export function EventForm({
     });
   }
 
+  // Mirrors handleCreateAndPublish's updateEvent-then-publishEvent sequence.
+  // Publish only flips the `published` flag on whatever's already in the
+  // database (see publishEvent's own comment) — it never reads the form's
+  // in-memory state, so a coach who edited a field and went straight to
+  // Publish without clicking "Save changes" first would have published the
+  // event's PREVIOUS saved state, silently dropping the edit. Saving first
+  // means Publish always reflects exactly what's on screen.
   function handlePublish() {
     setSavedMessage(null);
     if (!eventId) return;
     if (!runValidation(true)) return;
 
     startTransition(async () => {
-      const result = await publishEvent(eventId);
-      if (result.ok) {
-        router.push("/member/staff/events");
-      } else {
-        setFormError(result.error ?? "Could not publish the event.");
+      const saveResult = await updateEvent(eventId, data, slots);
+      if (!saveResult.ok) {
+        setFormError(saveResult.error ?? "Could not save the event.");
+        return;
       }
+      const publishResult = await publishEvent(eventId);
+      if (!publishResult.ok) {
+        setFormError(
+          publishResult.error ??
+            "Your changes were saved, but publishing failed. Try publishing again."
+        );
+        return;
+      }
+      router.push("/member/staff/events");
     });
   }
 

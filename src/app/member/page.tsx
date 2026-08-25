@@ -189,6 +189,20 @@ export default async function MemberDashboardPage() {
     throw new Error(countError.message);
   }
 
+  // "Has any active commitment" gate for the quick-access link below — RLS
+  // already scopes this to the caller's own rows, so no account_id filter
+  // is strictly needed, but it's kept explicit rather than relying on that
+  // silently, matching the convention in the /mine and [eventId] pages.
+  const { count: myCommitmentsCount, error: commitmentsCountError } = await supabase
+    .from("volunteer_signups")
+    .select("*", { count: "exact", head: true })
+    .eq("account_id", user.id)
+    .is("cancelled_at", null);
+
+  if (commitmentsCountError) {
+    throw new Error(commitmentsCountError.message);
+  }
+
   const portalLinks: PortalLink[] = [
     {
       href: "/member/volunteer",
@@ -210,7 +224,17 @@ export default async function MemberDashboardPage() {
 
   return (
     <Section>
-      <Eyebrow>Member Dashboard</Eyebrow>
+      <div className="flex items-center justify-between gap-4 flex-wrap">
+        <Eyebrow>Member Dashboard</Eyebrow>
+        {!!myCommitmentsCount && (
+          <Link
+            href="/member/volunteer/mine"
+            className="text-sm font-semibold text-purple-700 hover:text-purple-900 transition-colors"
+          >
+            My commitments &#8594;
+          </Link>
+        )}
+      </div>
 
       <h1 className="mt-4 text-[clamp(40px,6vw,80px)] leading-[1.05]">
         {ownerName ? (

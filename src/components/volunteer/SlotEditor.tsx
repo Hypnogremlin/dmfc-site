@@ -132,15 +132,19 @@ export function SlotEditor({
                 id={`slot-start-time-${slot.tempId}`}
                 label="Start time"
                 type="time"
+                required
                 value={slot.start_time}
                 onChange={(v) => updateSlot(slot.tempId, { start_time: v })}
+                error={slotErrors.start_time}
               />
               <TextField
                 id={`slot-end-time-${slot.tempId}`}
                 label="End time"
                 type="time"
+                required
                 value={slot.end_time}
                 onChange={(v) => updateSlot(slot.tempId, { end_time: v })}
+                error={slotErrors.end_time}
               />
             </div>
 
