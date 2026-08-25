@@ -57,3 +57,12 @@ site-reference.md
 ~$*
 releases document.txt
 
+# local-only dev tools — not for the public repo. This one uses the
+# service-role key to generate a valid member sign-in link without email
+# verification (for testing magic-link login on a Vercel preview, whose
+# fixed-to-production email template can't be used for that — see its own
+# header comment). The key itself never appears in the file, but checking in
+# a ready-made "impersonate any member" script still hands more capability
+# to a leaked key than the key alone implies. Kept in scripts/ locally.
+scripts/generate-magic-link.mjs
+
