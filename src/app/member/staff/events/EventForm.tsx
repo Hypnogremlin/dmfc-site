@@ -14,6 +14,7 @@ import {
   type SlotErrors,
 } from "@/lib/volunteer/event-validation";
 import type { EventDraft, VolunteerSlotDraft } from "@/lib/volunteer/types";
+import { datesInRange } from "@/lib/volunteer/datetime";
 import { createEvent, updateEvent, publishEvent, deleteEvent } from "../actions";
 
 const emptyDraft: EventDraft = {
@@ -55,6 +56,11 @@ export function EventForm({
   const [savedMessage, setSavedMessage] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
 
+  // Recomputed on every render from the current event dates — cheap, and
+  // keeps SlotEditor's day picker in sync the moment a coach changes the
+  // event's start/end date, with no separate effect needed.
+  const eventDays = datesInRange(data.start_date, data.end_date);
+
   function field<K extends keyof EventDraft>(key: K) {
     return (v: string) => setData((d) => ({ ...d, [key]: v }));
   }
@@ -65,7 +71,7 @@ export function EventForm({
   // server's re-check in actions.ts.
   function runValidation(requireSlot: boolean): boolean {
     const ee = validateEventDraft(data);
-    const se = validateSlots(slots);
+    const se = validateSlots(slots, data);
     setEventErrors(ee);
     setSlotErrors(se);
 
@@ -199,14 +205,21 @@ export function EventForm({
             value={data.start_time}
             onChange={field("start_time")}
           />
-          <TextField id="end_date" label="End date" type="date" value={data.end_date} onChange={field("end_date")} />
+          <TextField
+            id="end_date"
+            label="End date"
+            type="date"
+            value={data.end_date}
+            onChange={field("end_date")}
+            error={eventErrors.ends_at}
+          />
           <TextField id="end_time" label="End time" type="time" value={data.end_time} onChange={field("end_time")} />
         </div>
       </div>
 
       <div>
         <h2 className="text-lg font-semibold text-ink mb-4">Volunteer slots</h2>
-        <SlotEditor slots={slots} onChange={setSlots} errors={slotErrors} />
+        <SlotEditor slots={slots} onChange={setSlots} errors={slotErrors} eventDays={eventDays} />
       </div>
 
       {formError && (

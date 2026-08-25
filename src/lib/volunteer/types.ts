@@ -56,14 +56,23 @@ export type VolunteerSignup = {
 // actions.ts). Date/time/capacity are kept as separate controlled-input
 // strings — combined into timestamptz/number only at submit time, via
 // src/lib/volunteer/datetime.ts.
+//
+// A single `date` field, not separate start_date/end_date — a volunteer
+// shift is a role worked on one calendar day, and it must fall within its
+// parent event's own date range (enforced in event-validation.ts), so
+// SlotEditor picks this from the small set of days the event actually
+// spans rather than asking the coach to fill out a full date picker per
+// slot (owner decision, 2026-08-24 — tournaments can have a dozen-plus
+// slots, and re-entering the same one or two dates that many times was the
+// friction being solved). If an event spans only one day, SlotEditor skips
+// the day picker entirely and this is set to that day automatically.
 export type VolunteerSlotDraft = {
   id: string | null;
   tempId: string;
   role_name: string;
   notes: string;
-  start_date: string;
+  date: string;
   start_time: string;
-  end_date: string;
   end_time: string;
   capacity: string;
   adults_only: boolean;
@@ -79,21 +88,29 @@ export type EventDraft = {
   end_time: string;
 };
 
-export function newSlotDraft(): VolunteerSlotDraft {
+// `date` defaults to the caller-supplied event day when known (EventForm
+// passes the event's first day so a coach adding slots one after another
+// isn't reselecting the same date every time), and to "" otherwise.
+export function newSlotDraft(date: string = ""): VolunteerSlotDraft {
   return {
     id: null,
     tempId: crypto.randomUUID(),
     role_name: "",
     notes: "",
-    start_date: "",
+    date,
     start_time: "",
-    end_date: "",
     end_time: "",
     capacity: "1",
     adults_only: false,
   };
 }
 
+// Assumes start_at and ends_at fall on the same calendar day (true for
+// everything written through this UI going forward — see the type comment
+// above). If a row somehow has them on different days, `date` is taken from
+// start_at and ends_at's own date component is silently discarded, keeping
+// only its time-of-day; re-saving the slot would then normalize it onto a
+// single day.
 export function slotToDraft(slot: VolunteerSlot): VolunteerSlotDraft {
   const start = splitDateTime(slot.start_at);
   const end = splitDateTime(slot.ends_at);
@@ -102,9 +119,8 @@ export function slotToDraft(slot: VolunteerSlot): VolunteerSlotDraft {
     tempId: slot.id,
     role_name: slot.role_name,
     notes: slot.notes ?? "",
-    start_date: start.date,
+    date: start.date,
     start_time: start.time,
-    end_date: end.date,
     end_time: end.time,
     capacity: String(slot.capacity),
     adults_only: slot.adults_only,
@@ -154,9 +170,8 @@ export function duplicateSlotDraft(
     tempId: crypto.randomUUID(),
     role_name: source.role_name,
     notes: source.notes ?? "",
-    start_date: "",
+    date: "",
     start_time: "",
-    end_date: "",
     end_time: "",
     capacity: String(source.capacity),
     adults_only: source.adults_only,

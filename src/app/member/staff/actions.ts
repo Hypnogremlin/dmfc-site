@@ -8,7 +8,7 @@ import {
   validateSlots,
   publishBlockedReason,
 } from "@/lib/volunteer/event-validation";
-import { combineDateTime } from "@/lib/volunteer/datetime";
+import { combineDateTime, effectiveSlotDate } from "@/lib/volunteer/datetime";
 import type { EventDraft, VolunteerSlotDraft } from "@/lib/volunteer/types";
 
 type ActionResult = { ok: boolean; error?: string };
@@ -19,13 +19,25 @@ type ActionResult = { ok: boolean; error?: string };
 // See VOLUNTEERS.md, "Routes and file layout." None of these actions ever
 // touch `profiles` or `account_settings`, and none send email.
 
-function slotPayload(slot: VolunteerSlotDraft, eventId: string, sortOrder: number) {
+// `event` resolves the slot's actual day via effectiveSlotDate — for a
+// single-day event this overrides whatever's on the slot draft (which can
+// be blank, e.g. right after "Duplicate event") with the event's own day.
+// Must use the exact same resolution the client-side validation in
+// event-validation.ts uses, or a slot could pass validation against one
+// date and be written with another.
+function slotPayload(
+  slot: VolunteerSlotDraft,
+  eventId: string,
+  sortOrder: number,
+  event: EventDraft
+) {
+  const date = effectiveSlotDate(slot.date, event.start_date, event.end_date);
   return {
     event_id: eventId,
     role_name: slot.role_name.trim(),
     notes: slot.notes.trim() || null,
-    start_at: combineDateTime(slot.start_date, slot.start_time),
-    ends_at: combineDateTime(slot.end_date, slot.end_time),
+    start_at: combineDateTime(date, slot.start_time),
+    ends_at: combineDateTime(date, slot.end_time),
     capacity: parseInt(slot.capacity, 10),
     adults_only: slot.adults_only,
     sort_order: sortOrder,
@@ -34,7 +46,7 @@ function slotPayload(slot: VolunteerSlotDraft, eventId: string, sortOrder: numbe
 
 function validateForSave(data: EventDraft, slots: VolunteerSlotDraft[]): string | null {
   const eventErrors = validateEventDraft(data);
-  const slotErrors = validateSlots(slots);
+  const slotErrors = validateSlots(slots, data);
   if (Object.keys(eventErrors).length > 0 || Object.keys(slotErrors).length > 0) {
     return "Please fix the highlighted fields before saving.";
   }
@@ -92,7 +104,7 @@ export async function createEvent(
   if (slots.length > 0) {
     const { error: slotsError } = await supabase
       .from("volunteer_slots")
-      .insert(slots.map((s, i) => slotPayload(s, inserted.id, i)));
+      .insert(slots.map((s, i) => slotPayload(s, inserted.id, i, data)));
 
     // The event row already exists at this point even though slot insertion
     // failed — same sequential-writes tradeoff already accepted in
@@ -171,7 +183,7 @@ export async function updateEvent(
 
   for (let i = 0; i < slots.length; i++) {
     const slot = slots[i];
-    const payload = slotPayload(slot, eventId, i);
+    const payload = slotPayload(slot, eventId, i, data);
     if (slot.id) {
       const { error } = await supabase.from("volunteer_slots").update(payload).eq("id", slot.id);
       if (error) return { ok: false, error: error.message };
