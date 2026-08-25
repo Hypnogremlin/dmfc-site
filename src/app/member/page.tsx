@@ -196,7 +196,6 @@ export default async function MemberDashboardPage() {
       description: "Sign up to help out at upcoming events.",
       badge: newVolunteerCount ?? 0,
     },
-    ...staticPortalLinks,
     ...(isStaff
       ? [
           {
@@ -206,6 +205,7 @@ export default async function MemberDashboardPage() {
           },
         ]
       : []),
+    ...staticPortalLinks,
   ];
 
   return (
@@ -223,6 +223,44 @@ export default async function MemberDashboardPage() {
       </h1>
 
       <StripRule className="mt-12 mb-12" />
+
+      <div className="max-w-2xl">
+        <h2 className="text-[clamp(22px,3vw,32px)] leading-tight mb-8">
+          Member portal
+        </h2>
+        <ul className="space-y-0 divide-y divide-rule">
+          {portalLinks.map((item) => (
+            <li key={item.href}>
+              <Link
+                href={item.href}
+                className="group flex items-start justify-between gap-6 py-5 hover:text-purple-700 transition-colors"
+              >
+                <div>
+                  <p className="font-semibold text-ink group-hover:text-purple-700 transition-colors flex items-center gap-2">
+                    {item.label}
+                    {!!item.badge && (
+                      <span className="inline-flex items-center justify-center min-w-[1.5em] h-[1.5em] px-1.5 text-xs font-semibold rounded-full bg-brass text-ink">
+                        {item.badge}
+                      </span>
+                    )}
+                  </p>
+                  <p className="text-sm text-mute mt-0.5 leading-relaxed">
+                    {item.description}
+                  </p>
+                </div>
+                <span
+                  aria-hidden="true"
+                  className="text-brass mt-0.5 flex-shrink-0 text-lg"
+                >
+                  &#8594;
+                </span>
+              </Link>
+            </li>
+          ))}
+        </ul>
+      </div>
+
+      <StripRule className="mt-16 mb-12" />
 
       <div className="flex items-end justify-between gap-4 flex-wrap max-w-2xl mb-8">
         <h2 className="text-[clamp(22px,3vw,32px)] leading-tight">
@@ -329,44 +367,6 @@ export default async function MemberDashboardPage() {
           </div>
         </>
       )}
-
-      <StripRule className="mt-16 mb-12" />
-
-      <div className="max-w-2xl">
-        <h2 className="text-[clamp(22px,3vw,32px)] leading-tight mb-8">
-          Member portal
-        </h2>
-        <ul className="space-y-0 divide-y divide-rule">
-          {portalLinks.map((item) => (
-            <li key={item.href}>
-              <Link
-                href={item.href}
-                className="group flex items-start justify-between gap-6 py-5 hover:text-purple-700 transition-colors"
-              >
-                <div>
-                  <p className="font-semibold text-ink group-hover:text-purple-700 transition-colors flex items-center gap-2">
-                    {item.label}
-                    {!!item.badge && (
-                      <span className="inline-flex items-center justify-center min-w-[1.5em] h-[1.5em] px-1.5 text-xs font-semibold rounded-full bg-brass text-ink">
-                        {item.badge}
-                      </span>
-                    )}
-                  </p>
-                  <p className="text-sm text-mute mt-0.5 leading-relaxed">
-                    {item.description}
-                  </p>
-                </div>
-                <span
-                  aria-hidden="true"
-                  className="text-brass mt-0.5 flex-shrink-0 text-lg"
-                >
-                  &#8594;
-                </span>
-              </Link>
-            </li>
-          ))}
-        </ul>
-      </div>
 
       <StripRule className="mt-12 mb-8" />
 
