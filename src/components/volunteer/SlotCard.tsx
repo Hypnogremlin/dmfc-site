@@ -58,8 +58,19 @@ export function SlotCard({
     });
   }
 
+  // Pips read fine up to a normal roster size; past that they'd just be
+  // visual noise, so large-capacity slots fall back to the plain count.
+  const showPips = slot.capacity > 0 && slot.capacity <= 12;
+  // Dim only when the slot is full AND the viewer has no stake in it —
+  // a filled slot you're personally signed up for should still read clearly.
+  const dimmed = full && mySignups.length === 0;
+
   return (
-    <div className="border border-rule rounded-[4px] p-6 flex flex-col gap-4">
+    <div
+      className={`border border-brass/25 rounded-[4px] p-6 flex flex-col gap-4 transition-opacity ${
+        dimmed ? "opacity-60" : ""
+      }`}
+    >
       <div className="flex items-start justify-between gap-4 flex-wrap">
         <div>
           <p className="font-semibold text-ink">{slot.role_name}</p>
@@ -72,9 +83,27 @@ export function SlotCard({
               Adults only
             </span>
           )}
-          <span className="text-sm text-mute tabular">
-            {filled} / {slot.capacity} filled
-          </span>
+          {showPips ? (
+            <div className="flex items-center gap-2">
+              <div aria-hidden="true" className="flex items-center gap-1">
+                {Array.from({ length: slot.capacity }).map((_, i) => (
+                  <span
+                    key={i}
+                    className={`h-3.5 w-3.5 rounded-full border-[1.5px] border-brass ${
+                      i < filled ? "bg-brass" : "bg-transparent"
+                    }`}
+                  />
+                ))}
+              </div>
+              <span className="text-sm text-mute tabular">
+                {full ? "Filled" : `${filled} of ${slot.capacity} filled`}
+              </span>
+            </div>
+          ) : (
+            <span className="text-sm text-mute tabular">
+              {filled} / {slot.capacity} filled
+            </span>
+          )}
         </div>
       </div>
 

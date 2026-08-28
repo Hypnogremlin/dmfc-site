@@ -1,4 +1,5 @@
 import { redirect } from "next/navigation";
+import Image from "next/image";
 import type { Metadata } from "next";
 import { createSessionClient } from "@/lib/supabase-server";
 import { Section } from "@/components/Section";
@@ -224,64 +225,121 @@ export default async function MemberDashboardPage() {
 
   return (
     <Section>
-      <div className="flex items-center justify-between gap-4 flex-wrap">
-        <Eyebrow>Member Dashboard</Eyebrow>
-        {!!myCommitmentsCount && (
+      <div className="relative overflow-hidden">
+        {/* Faded backdrop photo, filling the whitespace to the right of the
+            max-w-2xl content column on wide viewports. Same grayscale +
+            contrast treatment as the homepage hero / CoachPortrait (see
+            DESIGN.md's "high-contrast monochrome" baseline), scoped to this
+            block only so it doesn't bleed into the solid purple-950 member
+            cards further down the page. */}
+        <div
+          aria-hidden="true"
+          className="hidden lg:block pointer-events-none select-none absolute inset-y-0 right-0 w-[46%] -z-10 [mask-image:radial-gradient(ellipse_75%_85%_at_78%_45%,black_35%,transparent_85%)] [-webkit-mask-image:radial-gradient(ellipse_75%_85%_at_78%_45%,black_35%,transparent_85%)]"
+        >
+          <Image
+            src="/img/Dashboard.jpg"
+            alt=""
+            fill
+            sizes="46vw"
+            className="object-cover object-[70%_40%] opacity-[0.12] [filter:grayscale(100%)_contrast(1.1)]"
+          />
+        </div>
+
+        <div className="flex items-center justify-between gap-4 flex-wrap">
+          <Eyebrow>Member Dashboard</Eyebrow>
+          {!!myCommitmentsCount && (
+            <Link
+              href="/member/volunteer/mine"
+              className="text-sm font-semibold text-purple-700 hover:text-purple-900 transition-colors"
+            >
+              My commitments &#8594;
+            </Link>
+          )}
+        </div>
+
+        <h1 className="mt-4 text-[clamp(40px,6vw,80px)] leading-[1.05]">
+          {ownerName ? (
+            <>
+              Welcome back, <span className="italic">{ownerName}.</span>
+            </>
+          ) : (
+            <>Welcome back.</>
+          )}
+        </h1>
+
+        <StripRule className="mt-12 mb-12" />
+
+        <div className="max-w-2xl">
+          <h2 className="text-[clamp(22px,3vw,32px)] leading-tight mb-8">
+            Member portal
+          </h2>
+
+          {/* Volunteer is always portalLinks[0] (see its construction above)
+              and is the system's primary action, so it gets the same
+              purple-950 card treatment as "Members on your account" below
+              instead of blending into the list — badge count carries over
+              unchanged. Everything else stays a plain hairline list, which
+              scales to any count without needing an even number of tiles
+              (a 2-column grid was tried and rejected for exactly that). */}
           <Link
-            href="/member/volunteer/mine"
-            className="text-sm font-semibold text-purple-700 hover:text-purple-900 transition-colors"
+            href={portalLinks[0].href}
+            className="group block bg-purple-950 text-bone rounded-[4px] p-8 md:p-10 mb-4 transition-colors hover:bg-purple-900"
           >
-            My commitments &#8594;
-          </Link>
-        )}
-      </div>
-
-      <h1 className="mt-4 text-[clamp(40px,6vw,80px)] leading-[1.05]">
-        {ownerName ? (
-          <>
-            Welcome back, <span className="italic">{ownerName}.</span>
-          </>
-        ) : (
-          <>Welcome back.</>
-        )}
-      </h1>
-
-      <StripRule className="mt-12 mb-12" />
-
-      <div className="max-w-2xl">
-        <h2 className="text-[clamp(22px,3vw,32px)] leading-tight mb-8">
-          Member portal
-        </h2>
-        <ul className="space-y-0 divide-y divide-rule">
-          {portalLinks.map((item) => (
-            <li key={item.href}>
-              <Link
-                href={item.href}
-                className="group flex items-start justify-between gap-6 py-5 hover:text-purple-700 transition-colors"
-              >
-                <div>
-                  <p className="font-semibold text-ink group-hover:text-purple-700 transition-colors flex items-center gap-2">
-                    {item.label}
-                    {!!item.badge && (
-                      <span className="inline-flex items-center justify-center min-w-[1.5em] h-[1.5em] px-1.5 text-xs font-semibold rounded-full bg-brass text-ink">
-                        {item.badge}
-                      </span>
-                    )}
-                  </p>
-                  <p className="text-sm text-mute mt-0.5 leading-relaxed">
-                    {item.description}
-                  </p>
-                </div>
-                <span
-                  aria-hidden="true"
-                  className="text-brass mt-0.5 flex-shrink-0 text-lg"
-                >
-                  &#8594;
+            <p className="font-display text-[clamp(24px,3vw,32px)] leading-tight flex items-center gap-3">
+              {portalLinks[0].label}
+              {!!portalLinks[0].badge && (
+                <span className="inline-flex items-center justify-center min-w-[1.5em] h-[1.5em] px-1.5 text-xs font-semibold rounded-full bg-brass text-ink">
+                  {portalLinks[0].badge}
                 </span>
-              </Link>
-            </li>
-          ))}
-        </ul>
+              )}
+            </p>
+            <p className="text-bone/75 text-sm mt-2 leading-relaxed max-w-md">
+              {portalLinks[0].description}
+            </p>
+            <div className="mt-6 pt-4 border-t border-bone/15 flex items-center justify-between">
+              <span className="text-sm font-semibold text-brass">
+                Go to {portalLinks[0].label}
+              </span>
+              <span
+                aria-hidden="true"
+                className="text-brass text-lg group-hover:translate-x-1 transition-transform"
+              >
+                &#8594;
+              </span>
+            </div>
+          </Link>
+
+          <ul className="space-y-0 divide-y divide-rule">
+            {portalLinks.slice(1).map((item) => (
+              <li key={item.href}>
+                <Link
+                  href={item.href}
+                  className="group flex items-start justify-between gap-6 py-4 hover:text-purple-700 transition-colors"
+                >
+                  <div>
+                    <p className="font-semibold text-ink group-hover:text-purple-700 transition-colors flex items-center gap-2">
+                      {item.label}
+                      {!!item.badge && (
+                        <span className="inline-flex items-center justify-center min-w-[1.5em] h-[1.5em] px-1.5 text-xs font-semibold rounded-full bg-brass text-ink">
+                          {item.badge}
+                        </span>
+                      )}
+                    </p>
+                    <p className="text-sm text-mute mt-0.5 leading-relaxed">
+                      {item.description}
+                    </p>
+                  </div>
+                  <span
+                    aria-hidden="true"
+                    className="text-brass mt-0.5 flex-shrink-0 text-lg"
+                  >
+                    &#8594;
+                  </span>
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </div>
       </div>
 
       <StripRule className="mt-16 mb-12" />

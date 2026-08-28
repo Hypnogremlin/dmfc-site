@@ -25,6 +25,14 @@ function formatDate(iso: string): string {
   });
 }
 
+function formatMonthShort(iso: string): string {
+  return new Date(iso).toLocaleDateString("en-US", { month: "short" });
+}
+
+function formatDayNumber(iso: string): string {
+  return new Date(iso).toLocaleDateString("en-US", { day: "numeric" });
+}
+
 export default async function VolunteerListPage() {
   const supabase = await createSessionClient();
 
@@ -70,14 +78,22 @@ export default async function VolunteerListPage() {
       {!events || events.length === 0 ? (
         <p className="text-mute">No open volunteer requests right now — check back soon.</p>
       ) : (
-        <ul className="divide-y divide-rule max-w-3xl">
+        <ul className="divide-y divide-brass/25 max-w-3xl">
           {events.map((event) => (
             <li key={event.id} className="py-5">
               <Link
                 href={`/member/volunteer/${event.id}`}
-                className="group flex items-center justify-between gap-6 hover:text-purple-700 transition-colors"
+                className="group flex items-center gap-6 hover:text-purple-700 transition-colors"
               >
-                <div>
+                <div className="flex-shrink-0 w-16 text-center">
+                  <div className="text-brass text-[10px] font-semibold uppercase tracking-[0.14em]">
+                    {formatMonthShort(event.starts_at)}
+                  </div>
+                  <div className="font-display text-4xl leading-none text-ink tabular">
+                    {formatDayNumber(event.starts_at)}
+                  </div>
+                </div>
+                <div className="flex-1">
                   <p className="font-semibold text-ink group-hover:text-purple-700 transition-colors">
                     {event.title}
                   </p>

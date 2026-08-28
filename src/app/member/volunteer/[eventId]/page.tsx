@@ -21,6 +21,14 @@ function formatDate(iso: string): string {
   });
 }
 
+function formatMonthShort(iso: string): string {
+  return new Date(iso).toLocaleDateString("en-US", { month: "short" });
+}
+
+function formatDayNumber(iso: string): string {
+  return new Date(iso).toLocaleDateString("en-US", { day: "numeric" });
+}
+
 export default async function VolunteerEventPage({
   params,
 }: {
@@ -139,13 +147,25 @@ export default async function VolunteerEventPage({
 
   return (
     <Section>
-      <Eyebrow>Volunteer</Eyebrow>
-      <h1 className="mt-4 text-[clamp(32px,5vw,56px)] leading-[1.05]">{event.title}</h1>
-      <p className="text-mute mt-2 tabular">
-        {formatDate(event.starts_at)}
-        {event.location ? ` · ${event.location}` : ""}
-      </p>
-      {event.description && <p className="text-ink mt-4 max-w-2xl">{event.description}</p>}
+      <div className="flex flex-col sm:flex-row gap-3 sm:gap-8 items-start">
+        <div className="flex-shrink-0">
+          <div className="text-brass text-xs font-semibold uppercase tracking-[0.14em]">
+            {formatMonthShort(event.starts_at)}
+          </div>
+          <div className="font-display text-[clamp(56px,8vw,88px)] leading-[0.9] text-ink tabular">
+            {formatDayNumber(event.starts_at)}
+          </div>
+        </div>
+        <div>
+          <Eyebrow>Volunteer</Eyebrow>
+          <h1 className="mt-4 text-[clamp(32px,5vw,56px)] leading-[1.05]">{event.title}</h1>
+          <p className="text-mute mt-2 tabular">
+            {formatDate(event.starts_at)}
+            {event.location ? ` · ${event.location}` : ""}
+          </p>
+          {event.description && <p className="text-ink mt-4 max-w-2xl">{event.description}</p>}
+        </div>
+      </div>
 
       <StripRule className="mt-10 mb-8" />
 
