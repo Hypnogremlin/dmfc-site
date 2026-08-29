@@ -1,5 +1,6 @@
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
+import Link from "next/link";
 import { createSessionClient } from "@/lib/supabase-server";
 import { Section } from "@/components/Section";
 import { Eyebrow } from "@/components/Eyebrow";
@@ -54,7 +55,15 @@ export default async function EditEventPage({
   return (
     <Section>
       <Eyebrow>Staff</Eyebrow>
-      <h1 className="mt-4 text-[clamp(32px,5vw,56px)] leading-[1.05]">{event.title}</h1>
+      <div className="flex items-end justify-between gap-4 flex-wrap">
+        <h1 className="mt-4 text-[clamp(32px,5vw,56px)] leading-[1.05]">{event.title}</h1>
+        <Link
+          href={`/member/staff/events/${event.id}/roster`}
+          className="text-sm text-mute hover:text-ink underline transition-colors"
+        >
+          View roster
+        </Link>
+      </div>
       <StripRule className="mt-8 mb-10" />
       <div className="max-w-2xl">
         <EventForm

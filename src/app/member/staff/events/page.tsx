@@ -76,6 +76,12 @@ export default async function StaffEventsPage() {
                 </span>
               </Link>
               <Link
+                href={`/member/staff/events/${event.id}/roster`}
+                className="text-sm text-mute hover:text-ink underline transition-colors flex-shrink-0"
+              >
+                Roster
+              </Link>
+              <Link
                 href={`/member/staff/events/new?duplicateFrom=${event.id}`}
                 className="text-sm text-mute hover:text-ink underline transition-colors flex-shrink-0"
               >
