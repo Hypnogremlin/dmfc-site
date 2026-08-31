@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { redirect } from "next/navigation";
 import type { Metadata } from "next";
 import type { SupabaseClient } from "@supabase/supabase-js";
@@ -253,6 +254,32 @@ export default async function EnrollPage({
         defaults={defaults}
         profileId={profileId}
       />
+
+      {/* Non-athlete escape hatch (VOLUNTEERS.md D14), first-enrollment only.
+          Deliberately a quiet link below the form rather than a choice screen
+          above it: essentially every arrival here is a fencing family, and
+          taxing the club's main enrollment funnel with a disambiguation click
+          to serve the rare board member is the wrong trade.
+
+          Not shown in "add" mode either — an account that already has fencers
+          on it can represent a non-fencing parent through the phantom-guardian
+          path in candidatesFor(). This type exists for the alum or childless
+          board member with their own login and no fencer at all. */}
+      {mode === "first" && (
+        <div className="mt-16 pt-8 border-t border-rule max-w-xl">
+          <p className="text-mute leading-relaxed">
+            Not enrolling a fencer?{" "}
+            <Link
+              href="/member/enroll/volunteer"
+              className="text-ink underline hover:text-purple-700 transition-colors"
+            >
+              Set up a non-athlete account instead
+            </Link>{" "}
+            — for board members, alumni, and supporters. Name and contact
+            details only.
+          </p>
+        </div>
+      )}
     </Section>
   );
 }

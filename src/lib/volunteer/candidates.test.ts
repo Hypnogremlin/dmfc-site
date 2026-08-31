@@ -212,4 +212,60 @@ describe("candidatesFor", () => {
     expect(real).toHaveLength(3); // Holland (real) + Zane (minor) + Holland (phantom) — not deduped
     expect(real.filter((c) => c.kind === "phantom")).toHaveLength(1);
   });
+
+  // M3.5 (VOLUNTEERS.md D14) added a third person_type for board members,
+  // alumni, and supporters who don't fence. No change to candidatesFor() was
+  // needed — the real-row loop pushes every profile unconditionally, and the
+  // minor test is allowlisted to 'athlete', so a volunteer row is an adult by
+  // construction. These cases pin that down, because the milestone's own spec
+  // wrongly claimed this function branched on 'guardian' and needed fixing.
+  it("a volunteer row is a selectable adult candidate", () => {
+    const candidates = candidatesFor([
+      profile({
+        id: "v1",
+        person_type: "volunteer",
+        first_name: "Dana",
+        last_name: "Whitfield",
+        birthday: null, // a volunteer row carries no birthday
+        contact_phone: "5155550300",
+      }),
+    ]);
+    const real = candidates.filter((c) => c.kind !== "other");
+    expect(real).toHaveLength(1);
+    expect(real[0]).toMatchObject({
+      kind: "profile",
+      profileId: "v1",
+      name: "Dana Whitfield",
+      isMinor: false, // never filtered out of an adults_only slot
+    });
+  });
+
+  it("a volunteer alongside a fencing family is offered as one more adult", () => {
+    const candidates = candidatesFor([
+      profile({
+        id: "c1",
+        first_name: "Zane",
+        last_name: "Reyes",
+        birthday: MINOR_BIRTHDAY,
+        contact_phone: "5155550101",
+        guardian_first_name: "Holland",
+        guardian_last_name: "Reyes",
+        guardian_relationship: "Father",
+        guardian_phone: "5155550100",
+      }),
+      profile({
+        id: "v1",
+        person_type: "volunteer",
+        first_name: "Dana",
+        last_name: "Whitfield",
+        birthday: null,
+        contact_phone: "5155550300",
+      }),
+    ]);
+    const real = candidates.filter((c) => c.kind !== "other");
+    // Zane (minor) + Holland (phantom) + Dana (volunteer)
+    expect(real).toHaveLength(3);
+    expect(real.some((c) => c.kind === "profile" && c.name === "Dana Whitfield")).toBe(true);
+    expect(shouldShowPicker(candidates)).toBe(true);
+  });
 });

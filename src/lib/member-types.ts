@@ -3,12 +3,31 @@ export type SexAtBirth = "male" | "female";
 export type ShirtSize = "YXS" | "YS" | "YM" | "YL" | "YXL" | "XS" | "S" | "M" | "L" | "XL" | "XXL" | "XXXL";
 export type SignerType = "athlete" | "guardian";
 
-// `profiles` rows are either a fencer ("athlete") or a lazily-created adult
-// record standing in for a parent/guardian who has no login-independent
-// identity of their own (see VOLUNTEERS.md D2/D3). Guardian rows exist only
-// to be a named volunteer signup — they carry no birthday, address, or
-// waiver data, which is why the athlete-only columns below are nullable.
-export type PersonType = "athlete" | "guardian";
+// `profiles` is a people table, not a fencer table. Three kinds of row:
+//
+//   'athlete'   — a fencer. The only kind with a season, waivers, and the
+//                 athlete-only columns enforced by profiles_athlete_required_fields.
+//   'guardian'  — a lazily-created adult record standing in for a parent who has
+//                 no identity of their own, seeded from a child's guardian_*
+//                 columns on first volunteer signup (VOLUNTEERS.md D2/D3).
+//   'volunteer' — an adult connected to the club who is neither a fencer nor
+//                 anybody's parent: a board member, an alum, a supporter. Created
+//                 self-serve at /member/enroll/volunteer (D14). The club counts
+//                 board service and coaching AS volunteering, which is why this
+//                 value is 'volunteer' and not 'associate'.
+//
+// Only athletes carry birthday/address/waiver data, which is why the
+// athlete-only columns below are nullable.
+//
+// Filtering convention — the two directions are NOT symmetrical:
+//   * WRITE and REPORT paths use positive allowlists (.eq("person_type","athlete")),
+//     so an unknown new type is excluded by construction. Never rewrite one of
+//     these as .neq("person_type","guardian") — it reads as equivalent and
+//     silently admits every future type. This matters most in usafReport.ts.
+//   * DISPLAY partitions use the catch-all (!== "athlete"), so a new type still
+//     renders somewhere instead of vanishing.
+// Both directions fail safe; swapping them fails open.
+export type PersonType = "athlete" | "guardian" | "volunteer";
 
 export type Profile = {
   id: string;
@@ -200,6 +219,18 @@ export type MembershipFormData = {
   // 6. Photo & Video Release — athlete (adult) or guardian (minor)
   photo_release_agreed: boolean;
   photo_release_signature: string;
+};
+
+// The self-serve non-athlete signup (VOLUNTEERS.md D14). These four fields are
+// exactly the `profiles` columns that stayed NOT NULL after M1 relaxed the
+// athlete-only ones — a volunteer row needs nothing else, and deliberately does
+// NOT reuse MembershipFormData: no season, no waivers, no emergency contact, no
+// medical record, no address. See createVolunteerProfile().
+export type VolunteerProfileData = {
+  first_name: string;
+  last_name: string;
+  contact_email: string;
+  contact_phone: string;
 };
 
 export const MEMBERSHIP_SEASON = "2026-27";

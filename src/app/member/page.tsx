@@ -45,19 +45,20 @@ function formatSeason(season: string | null): string {
 // Preference order — deliberately ranked by how *confident* each signal is
 // that the name belongs to the person signed in right now, not just by
 // "guardian beats athlete" or vice versa:
-//   1. A guardian row whose `contact_email` matches the signed-in login
-//      (case-insensitive). Strong signal — a guardian row's contact_email is
-//      seeded from `auth.users.email` at lazy creation time (D3), so this
-//      row *is* the person signed in.
+//   1. A non-athlete adult row whose `contact_email` matches the signed-in
+//      login (case-insensitive). Strong signal — a guardian row's
+//      contact_email is seeded from `auth.users.email` at lazy creation time
+//      (D3), and a volunteer row's is entered by the person themselves at
+//      signup (D14), so this row *is* the person signed in.
 //   2. An adult (non-minor) athlete profile. Also a strong signal — the
 //      login's own fencing record.
-//   3. Any remaining guardian row. Weak fallback only: once M3 ships lazy
-//      guardian creation, an account can hold *several* guardian rows (two
-//      parents split across siblings' `guardian_*` data, or one added via
-//      "Someone else…" carrying its own email). Falling to an arbitrary one
-//      of those is a guess, not a confirmation — it must lose to tier 2. An
-//      adult athlete's own record is a better answer than "some guardian on
-//      this account" when the account holder also fences.
+//   3. Any remaining non-athlete adult row. Weak fallback only: an account can
+//      hold *several* (two parents split across siblings' `guardian_*` data,
+//      one added via "Someone else…" carrying its own email, or a supporter
+//      alongside them). Falling to an arbitrary one of those is a guess, not a
+//      confirmation — it must lose to tier 2. An adult athlete's own record is
+//      a better answer than "some adult on this account" when the account
+//      holder also fences.
 //   4. `guardian_first_name` captured on any minor athlete's row.
 //   5. No name resolves — the caller falls back to a neutral greeting.
 //
@@ -71,21 +72,25 @@ function resolveOwnerName(
   members: MemberSummary[],
   userEmail: string | null | undefined
 ): string | null {
-  const guardians = members.filter((m) => m.person_type === "guardian");
+  // Catch-all rather than an enumerated list of non-athlete types: a supporter
+  // ('volunteer', D14) is the account holder by construction, so it belongs in
+  // tiers 1 and 3 on exactly the same reasoning a guardian row does. Widening
+  // the filter adds it to both without moving a single tier.
+  const adultRows = members.filter((m) => m.person_type !== "athlete");
 
   const normalizedUserEmail = userEmail?.toLowerCase();
-  const signedInGuardian = guardians.find(
+  const signedInAdult = adultRows.find(
     (g) =>
       normalizedUserEmail && g.contact_email.toLowerCase() === normalizedUserEmail
   );
-  if (signedInGuardian) return signedInGuardian.first_name;
+  if (signedInAdult) return signedInAdult.first_name;
 
   const adultAthlete = members.find(
     (m) => m.person_type === "athlete" && !isMinor(m.birthday)
   );
   if (adultAthlete) return adultAthlete.first_name;
 
-  if (guardians.length > 0) return guardians[0].first_name;
+  if (adultRows.length > 0) return adultRows[0].first_name;
 
   const minorWithGuardianName = members.find(
     (m) => m.person_type === "athlete" && m.guardian_first_name
@@ -145,17 +150,28 @@ export default async function MemberDashboardPage() {
     throw new Error(membersError.message);
   }
 
-  // No members yet → start the first enrollment.
-  if (!members || members.length === 0) {
+  // Adults on the account carry no season or enrollment data of their own —
+  // a 'guardian' row is created lazily on first volunteer signup
+  // (VOLUNTEERS.md D3), a 'volunteer' row self-serve by a board member or
+  // alum (D14). Both render in their own lighter block below, not as member
+  // cards with empty season badges.
+  //
+  // The adults side is a catch-all (!== "athlete"), not a list of the two
+  // known values. An enumerated partition is how a 'volunteer' row would have
+  // rendered *nowhere* while still counting toward the redirect check below —
+  // present in the data, invisible on the page. Display partitions catch all;
+  // write and report paths allowlist. See the note on PersonType in
+  // member-types.ts.
+  const athletes = (members ?? []).filter((m) => m.person_type === "athlete");
+  const adults = (members ?? []).filter((m) => m.person_type !== "athlete");
+
+  // Nobody on the account yet → start the first enrollment. Deliberately keyed
+  // on "no rows of any kind," not on athletes alone: a supporter with only a
+  // volunteer row has no athlete and must not be bounced into the six-step
+  // fencer wizard on every visit, forever.
+  if (athletes.length === 0 && adults.length === 0) {
     redirect("/member/enroll");
   }
-
-  // Guardian rows (person_type = 'guardian') are adults on the account with
-  // no season/enrollment data of their own — created lazily on first
-  // volunteer signup (VOLUNTEERS.md D3). They render in their own lighter
-  // block below, not as member cards with empty season badges.
-  const athletes = members.filter((m) => m.person_type === "athlete");
-  const guardians = members.filter((m) => m.person_type === "guardian");
 
   const ownerName = resolveOwnerName(members, user.email);
 
@@ -170,9 +186,14 @@ export default async function MemberDashboardPage() {
   // already happened, via the same upcomingCutoffIso() the volunteer list
   // page filters on, so a never-visited account isn't badged with every
   // request the club has ever published.
-  const [{ data: settings, error: settingsError }, isStaff] = await Promise.all([
+  // Two role checks rather than one read plus local rank arithmetic: roleRank
+  // is private to lib/roles.ts on purpose, and duplicating the cascade here is
+  // how the two would eventually disagree. Each is a single indexed lookup on
+  // a 1-row-per-login table.
+  const [{ data: settings, error: settingsError }, isStaff, isAdmin] = await Promise.all([
     supabase.from("account_settings").select("volunteer_last_seen_at").eq("id", user.id).maybeSingle(),
     hasRoleAtLeast("coach"),
+    hasRoleAtLeast("admin"),
   ]);
 
   if (settingsError) {
@@ -217,6 +238,17 @@ export default async function MemberDashboardPage() {
             href: "/member/staff/events",
             label: "Staff dashboard",
             description: "Create and publish volunteer requests.",
+          },
+        ]
+      : []),
+    // Admin-only. Kept out of index 0 deliberately — Volunteer is the featured
+    // card and the reason this whole system exists (see DESIGN.md 2026-08-27).
+    ...(isAdmin
+      ? [
+          {
+            href: "/member/staff/roles",
+            label: "Manage roles",
+            description: "Grant coach and board access to member accounts.",
           },
         ]
       : []),
@@ -359,6 +391,19 @@ export default async function MemberDashboardPage() {
         </Link>
       </div>
 
+      {/* A supporter account (D14) legitimately has no fencers on it. The
+          heading and "Add a member" button above stay visible either way —
+          that link is their only route into enrollment if they later sign a
+          child up — but the grid needs to say something rather than render
+          as an empty div under a heading. */}
+      {athletes.length === 0 && (
+        <p className="text-mute max-w-2xl leading-relaxed">
+          No fencers on this account yet. Use{" "}
+          <span className="text-ink font-medium">Add a member</span> above to
+          enroll one.
+        </p>
+      )}
+
       <div className="grid grid-cols-1 gap-6 max-w-2xl">
         {athletes.map((member) => (
           <div
@@ -426,7 +471,7 @@ export default async function MemberDashboardPage() {
         ))}
       </div>
 
-      {guardians.length > 0 && (
+      {adults.length > 0 && (
         <>
           <StripRule className="mt-16 mb-12" />
 
@@ -435,14 +480,20 @@ export default async function MemberDashboardPage() {
           </h2>
 
           {/* Deliberately lighter than the purple-950 member cards above —
-              a guardian isn't a fencer with a season badge, just a named
-              adult available to volunteer. Card is the DESIGN.md-standard
+              these adults aren't fencers with a season badge, just named
+              people available to volunteer. Card is the DESIGN.md-standard
               hairline surface, not a second member-card treatment. */}
           <div className="grid grid-cols-1 gap-4 max-w-2xl">
-            {guardians.map((guardian) => (
-              <Card key={guardian.id} className="!p-6 md:!p-8">
+            {adults.map((adult) => (
+              <Card key={adult.id} className="!p-6 md:!p-8">
                 <p className="font-display text-lg text-ink">
-                  {guardian.first_name} {guardian.last_name}
+                  {adult.first_name} {adult.last_name}
+                </p>
+                {/* Names the row's kind. Without it a supporter-only account
+                    renders as one name floating in a card with no context for
+                    why it's here and no season data to imply it. */}
+                <p className="mt-1 text-xs font-semibold uppercase tracking-[0.12em] text-mute">
+                  {adult.person_type === "volunteer" ? "Supporter" : "Guardian"}
                 </p>
               </Card>
             ))}
