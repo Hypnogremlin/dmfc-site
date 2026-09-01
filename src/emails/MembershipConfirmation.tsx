@@ -26,6 +26,16 @@ const WEAPON_LABELS: Record<WeaponClass, string> = {
   saber: "Saber",
 };
 
+// Mirrors WEAPON_EMAILS in src/app/member/actions.ts — kept as a separate
+// literal rather than a shared import since that file is server-only and
+// this component also renders in the email preview tooling.
+const WEAPON_EMAILS: Record<WeaponClass, string> = {
+  "foil-youth": "dmfcfoil@gmail.com",
+  "foil-adult": "dmfcfoil@gmail.com",
+  epee: "dmfcepee@gmail.com",
+  saber: "dmfcsaber@gmail.com",
+};
+
 // Waiver header names, matching the headers shown on the enrollment form
 // (src/components/membership/MembershipForm.tsx). Kept as local literals here
 // rather than importing from the form — the form's headers are private
@@ -162,6 +172,21 @@ export function MembershipConfirmation({
     photoReleaseAgreed && PHOTO_RELEASE_HEADER,
   ].filter((header): header is string => Boolean(header));
 
+  // Grouped by inbox, not by weapon: foil-youth and foil-adult share
+  // dmfcfoil@gmail.com, and a family enrolling in two weapons shouldn't get
+  // the same address printed twice with two different weapon lists attached.
+  const contactsByEmail = new Map<string, string[]>();
+  for (const w of weaponClasses) {
+    const email = WEAPON_EMAILS[w];
+    const labels = contactsByEmail.get(email) ?? [];
+    labels.push(WEAPON_LABELS[w]);
+    contactsByEmail.set(email, labels);
+  }
+  const weaponContacts = Array.from(contactsByEmail, ([email, labels]) => ({
+    email,
+    labels,
+  }));
+
   return (
     <Html lang="en">
       <Head />
@@ -199,6 +224,19 @@ export function MembershipConfirmation({
             {waiversSigned.map((header) => (
               <Text key={header} style={styles.bulletItem}>
                 &middot; {header}
+              </Text>
+            ))}
+
+            <Hr style={styles.hr} />
+
+            <Text style={styles.sectionHeading}>Getting Started</Text>
+            {weaponContacts.map(({ email, labels }) => (
+              <Text key={email} style={styles.bulletItem}>
+                {labels.join(" / ")}: email{" "}
+                <Link href={`mailto:${email}`} style={styles.link}>
+                  {email}
+                </Link>{" "}
+                to find the best day to start.
               </Text>
             ))}
 
