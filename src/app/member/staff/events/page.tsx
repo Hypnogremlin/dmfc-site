@@ -58,7 +58,7 @@ export default async function StaffEventsPage() {
           {events.map((event) => (
             <li key={event.id} className="py-5 flex items-center justify-between gap-6">
               <Link
-                href={`/member/staff/events/${event.id}`}
+                href={`/member/staff/events/${event.id}/roster`}
                 className="group flex-1 flex items-center justify-between gap-6 hover:text-purple-700 transition-colors"
               >
                 <div>
@@ -76,10 +76,10 @@ export default async function StaffEventsPage() {
                 </span>
               </Link>
               <Link
-                href={`/member/staff/events/${event.id}/roster`}
+                href={`/member/staff/events/${event.id}`}
                 className="text-sm text-mute hover:text-ink underline transition-colors flex-shrink-0"
               >
-                Roster
+                Edit
               </Link>
               <Link
                 href={`/member/staff/events/new?duplicateFrom=${event.id}`}

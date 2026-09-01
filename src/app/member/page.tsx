@@ -232,17 +232,20 @@ export default async function MemberDashboardPage() {
       description: "Sign up to help out at upcoming events.",
       badge: newVolunteerCount ?? 0,
     },
+    ...staticPortalLinks,
+    // Coach+ and admin-only respectively. Kept at the bottom of the list
+    // deliberately — Volunteer is the featured card and the reason this whole
+    // system exists (see DESIGN.md 2026-08-27), and these are staff tools most
+    // members never see at all.
     ...(isStaff
       ? [
           {
             href: "/member/staff/events",
-            label: "Staff dashboard",
+            label: "Manage events",
             description: "Create and publish volunteer requests.",
           },
         ]
       : []),
-    // Admin-only. Kept out of index 0 deliberately — Volunteer is the featured
-    // card and the reason this whole system exists (see DESIGN.md 2026-08-27).
     ...(isAdmin
       ? [
           {
@@ -252,7 +255,6 @@ export default async function MemberDashboardPage() {
           },
         ]
       : []),
-    ...staticPortalLinks,
   ];
 
   return (
