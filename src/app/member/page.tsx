@@ -244,6 +244,11 @@ export default async function MemberDashboardPage() {
             label: "Manage events",
             description: "Create and publish volunteer requests.",
           },
+          {
+            href: "/member/staff/directory",
+            label: "Member directory",
+            description: "Look up contact info, classes, and emergency contacts.",
+          },
         ]
       : []),
     ...(isAdmin
