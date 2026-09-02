@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { redirect } from "next/navigation";
 import type { Metadata } from "next";
 import type { SupabaseClient } from "@supabase/supabase-js";
@@ -189,13 +190,23 @@ export default async function EnrollPage({
     throw new Error(membersError.message);
   }
 
+  // This form is athlete-only — birthday, sex at birth, address, and waivers
+  // all assume a fencer. A guardian row (person_type = 'guardian', created
+  // lazily on first volunteer signup per VOLUNTEERS.md D3) has none of that
+  // and must never be loaded into it, edited through it, or used as the
+  // "latest member" template for a new sibling.
+  const athletes = (members ?? []).filter((m) => m.person_type === "athlete");
+
   let defaults: Partial<MembershipFormData> | undefined;
   let profileId: string | undefined;
   let mode: "first" | "add" | "edit" = "first";
 
   if (memberId) {
-    // Edit / resume an existing member (must belong to this owner).
-    const target = members?.find((m) => m.id === memberId);
+    // Edit / resume an existing member (must belong to this owner and be an
+    // athlete). Not-found and wrong-person-type both bounce the same way a
+    // mismatched id already does above them — there's nothing for either
+    // case to recover into on this form.
+    const target = athletes.find((m) => m.id === memberId);
     if (!target) {
       redirect("/member");
     }
@@ -206,10 +217,10 @@ export default async function EnrollPage({
       target.id
     );
     defaults = fullDefaults(target, contacts, medical, waiver);
-  } else if (members && members.length > 0) {
+  } else if (athletes.length > 0) {
     // Adding another member — pre-fill shared household fields.
     mode = "add";
-    const latest = members[members.length - 1];
+    const latest = athletes[athletes.length - 1];
     const { contacts } = await loadMemberChildren(supabase, latest.id);
     defaults = sharedDefaults(latest, contacts);
   }
@@ -243,6 +254,32 @@ export default async function EnrollPage({
         defaults={defaults}
         profileId={profileId}
       />
+
+      {/* Non-athlete escape hatch (VOLUNTEERS.md D14), first-enrollment only.
+          Deliberately a quiet link below the form rather than a choice screen
+          above it: essentially every arrival here is a fencing family, and
+          taxing the club's main enrollment funnel with a disambiguation click
+          to serve the rare board member is the wrong trade.
+
+          Not shown in "add" mode either — an account that already has fencers
+          on it can represent a non-fencing parent through the phantom-guardian
+          path in candidatesFor(). This type exists for the alum or childless
+          board member with their own login and no fencer at all. */}
+      {mode === "first" && (
+        <div className="mt-16 pt-8 border-t border-rule max-w-xl">
+          <p className="text-mute leading-relaxed">
+            Not enrolling a fencer?{" "}
+            <Link
+              href="/member/enroll/volunteer"
+              className="text-ink underline hover:text-purple-700 transition-colors"
+            >
+              Set up a non-athlete account instead
+            </Link>{" "}
+            — for board members, alumni, and supporters. Name and contact
+            details only.
+          </p>
+        </div>
+      )}
     </Section>
   );
 }

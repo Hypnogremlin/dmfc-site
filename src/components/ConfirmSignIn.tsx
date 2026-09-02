@@ -31,7 +31,16 @@ export function ConfirmSignIn({ tokenHash, type }: ConfirmSignInProps) {
       return;
     }
 
+    // Header (in the root layout) is a Server Component that reads the
+    // session server-side. A client-side push alone reuses Next's cached
+    // render of shared layout segments from before sign-in, so Header keeps
+    // showing "Member Login" even though /member itself renders correctly
+    // (it's a different route segment, fetched fresh). refresh() invalidates
+    // that cache so Header re-reads the new cookie on the next render.
+    // signOut doesn't need this — Server Actions invalidate the router
+    // cache automatically, but this client-side verifyOtp() path doesn't.
     router.push("/member");
+    router.refresh();
   }
 
   return (

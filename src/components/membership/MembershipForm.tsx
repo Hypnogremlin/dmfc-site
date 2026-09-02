@@ -12,6 +12,7 @@ import { Button } from "@/components/Button";
 import { Eyebrow } from "@/components/Eyebrow";
 import { StripRule } from "@/components/StripRule";
 import { FormField } from "./FormField";
+import { TextField } from "@/components/TextField";
 import { calculateAge } from "@/lib/age";
 import { validateStep, type Errors } from "@/lib/membership-validation";
 
@@ -295,44 +296,9 @@ function inputCls(err?: string) {
 }
 
 // ─── Reusable sub-components ─────────────────────────────────────────────────
-
-function TextField({
-  id,
-  label,
-  value,
-  onChange,
-  required,
-  error,
-  hint,
-  type = "text",
-  placeholder,
-  readOnly,
-}: {
-  id: string;
-  label: string;
-  value: string;
-  onChange?: (v: string) => void;
-  required?: boolean;
-  error?: string;
-  hint?: string;
-  type?: string;
-  placeholder?: string;
-  readOnly?: boolean;
-}) {
-  return (
-    <FormField label={label} required={required} error={error} hint={hint} htmlFor={id}>
-      <input
-        id={id}
-        type={type}
-        value={value}
-        readOnly={readOnly}
-        onChange={onChange ? (e) => onChange(e.target.value) : undefined}
-        placeholder={placeholder}
-        className={cx(inputCls(error), readOnly && "opacity-60 cursor-not-allowed")}
-      />
-    </FormField>
-  );
-}
+// TextField moved to src/components/TextField.tsx (imported above) — it was
+// generic despite living in this file, and M2's staff forms are the third
+// place that needs the same input+FormField pattern.
 
 function SelectField({
   id,

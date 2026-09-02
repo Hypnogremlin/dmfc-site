@@ -6,7 +6,7 @@ import { Eyebrow } from "./Eyebrow";
 
 export function Footer() {
   return (
-    <footer className="relative bg-purple-950 text-bone mt-auto overflow-hidden">
+    <footer className="relative bg-purple-950 text-bone mt-auto overflow-hidden print:hidden">
       <Image
         src="/logo.png"
         alt=""

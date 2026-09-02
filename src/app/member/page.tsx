@@ -1,12 +1,21 @@
 import { redirect } from "next/navigation";
+import Image from "next/image";
 import type { Metadata } from "next";
 import { createSessionClient } from "@/lib/supabase-server";
 import { Section } from "@/components/Section";
 import { Eyebrow } from "@/components/Eyebrow";
 import { StripRule } from "@/components/StripRule";
+import { Card } from "@/components/Card";
 import { signOut } from "./actions";
 import type { MemberSummary, WeaponClass } from "@/lib/member-types";
 import { isMinor } from "@/lib/age";
+import { hasRoleAtLeast } from "@/lib/roles";
+import { upcomingCutoffIso } from "@/lib/volunteer/datetime";
+import {
+  isCancellationInScope,
+  isStaffCancelled,
+  isUnreadCancellation,
+} from "@/lib/volunteer/cancellations";
 import Link from "next/link";
 
 export const metadata: Metadata = {
@@ -31,13 +40,82 @@ function formatSeason(season: string | null): string {
   return season.replace("-", "–");
 }
 
+// Resolves the dashboard greeting to the account HOLDER's name, not simply
+// the first profile's — `profiles` rows are athletes (plus, as of M1,
+// lazily-created guardian rows per VOLUNTEERS.md D3), and the first one
+// created on an account is not necessarily the adult who is signed in. This
+// replaces the old `members[0].first_name`, which greeted a fencing parent
+// with their child's first name.
+//
+// Preference order — deliberately ranked by how *confident* each signal is
+// that the name belongs to the person signed in right now, not just by
+// "guardian beats athlete" or vice versa:
+//   1. A non-athlete adult row whose `contact_email` matches the signed-in
+//      login (case-insensitive). Strong signal — a guardian row's
+//      contact_email is seeded from `auth.users.email` at lazy creation time
+//      (D3), and a volunteer row's is entered by the person themselves at
+//      signup (D14), so this row *is* the person signed in.
+//   2. An adult (non-minor) athlete profile. Also a strong signal — the
+//      login's own fencing record.
+//   3. Any remaining non-athlete adult row. Weak fallback only: an account can
+//      hold *several* (two parents split across siblings' `guardian_*` data,
+//      one added via "Someone else…" carrying its own email, or a supporter
+//      alongside them). Falling to an arbitrary one of those is a guess, not a
+//      confirmation — it must lose to tier 2. An adult athlete's own record is
+//      a better answer than "some adult on this account" when the account
+//      holder also fences.
+//   4. `guardian_first_name` captured on any minor athlete's row.
+//   5. No name resolves — the caller falls back to a neutral greeting.
+//
+// Do not "simplify" this by hoisting the guardian check above the athlete
+// check — that regresses to matching by whichever guardian sorts first,
+// which can greet an adult athlete who owns the account by a different
+// guardian's name entirely (e.g. their spouse's, if hers was added via
+// "Someone else…" with her own email and his athlete profile has no email
+// match to offer).
+function resolveOwnerName(
+  members: MemberSummary[],
+  userEmail: string | null | undefined
+): string | null {
+  // Catch-all rather than an enumerated list of non-athlete types: a supporter
+  // ('volunteer', D14) is the account holder by construction, so it belongs in
+  // tiers 1 and 3 on exactly the same reasoning a guardian row does. Widening
+  // the filter adds it to both without moving a single tier.
+  const adultRows = members.filter((m) => m.person_type !== "athlete");
+
+  const normalizedUserEmail = userEmail?.toLowerCase();
+  const signedInAdult = adultRows.find(
+    (g) =>
+      normalizedUserEmail && g.contact_email.toLowerCase() === normalizedUserEmail
+  );
+  if (signedInAdult) return signedInAdult.first_name;
+
+  const adultAthlete = members.find(
+    (m) => m.person_type === "athlete" && !isMinor(m.birthday)
+  );
+  if (adultAthlete) return adultAthlete.first_name;
+
+  if (adultRows.length > 0) return adultRows[0].first_name;
+
+  const minorWithGuardianName = members.find(
+    (m) => m.person_type === "athlete" && m.guardian_first_name
+  );
+  if (minorWithGuardianName) return minorWithGuardianName.guardian_first_name;
+
+  return null;
+}
+
 type PortalLink = {
   href: string;
   label: string;
   description: string;
+  badge?: number;
 };
 
-const portalLinks: PortalLink[] = [
+// Static entries. Volunteer (with its unread badge) and Staff dashboard
+// (role-gated) are appended dynamically in the component below, since both
+// depend on data this array can't see.
+const staticPortalLinks: PortalLink[] = [
   {
     href: "/classes",
     label: "Class schedule",
@@ -64,7 +142,7 @@ export default async function MemberDashboardPage() {
   const { data: members, error: membersError } = await supabase
     .from("profiles")
     .select(
-      "id, first_name, last_name, birthday, weapon_classes, membership_season, enrollment_complete"
+      "id, person_type, first_name, last_name, birthday, weapon_classes, membership_season, enrollment_complete, guardian_first_name, contact_email"
     )
     .eq("account_owner_id", user.id)
     .order("created_at", { ascending: true })
@@ -77,23 +155,299 @@ export default async function MemberDashboardPage() {
     throw new Error(membersError.message);
   }
 
-  // No members yet → start the first enrollment.
-  if (!members || members.length === 0) {
+  // Adults on the account carry no season or enrollment data of their own —
+  // a 'guardian' row is created lazily on first volunteer signup
+  // (VOLUNTEERS.md D3), a 'volunteer' row self-serve by a board member or
+  // alum (D14). Both render in their own lighter block below, not as member
+  // cards with empty season badges.
+  //
+  // The adults side is a catch-all (!== "athlete"), not a list of the two
+  // known values. An enumerated partition is how a 'volunteer' row would have
+  // rendered *nowhere* while still counting toward the redirect check below —
+  // present in the data, invisible on the page. Display partitions catch all;
+  // write and report paths allowlist. See the note on PersonType in
+  // member-types.ts.
+  const athletes = (members ?? []).filter((m) => m.person_type === "athlete");
+  const adults = (members ?? []).filter((m) => m.person_type !== "athlete");
+
+  // Nobody on the account yet → start the first enrollment. Deliberately keyed
+  // on "no rows of any kind," not on athletes alone: a supporter with only a
+  // volunteer row has no athlete and must not be bounced into the six-step
+  // fencer wizard on every visit, forever.
+  if (athletes.length === 0 && adults.length === 0) {
     redirect("/member/enroll");
   }
 
-  const ownerName = members[0].first_name;
+  const ownerName = resolveOwnerName(members, user.email);
+
+  // D10: "new" is any published request the member hasn't seen since it went
+  // live. Compared against published_at, not created_at — a coach commonly
+  // creates a draft days before publishing it (M2's whole draft/publish
+  // split exists for this), and keying off created_at meant the badge never
+  // fired for the normal case of "drafted before your last visit, published
+  // after it." NULL (never visited /member/volunteer) counts everything
+  // published as new, rather than nothing — a fresh account shouldn't have
+  // to guess whether requests already exist. Also excludes events that have
+  // already happened, via the same upcomingCutoffIso() the volunteer list
+  // page filters on, so a never-visited account isn't badged with every
+  // request the club has ever published.
+  // Two role checks rather than one read plus local rank arithmetic: roleRank
+  // is private to lib/roles.ts on purpose, and duplicating the cascade here is
+  // how the two would eventually disagree. Each is a single indexed lookup on
+  // a 1-row-per-login table.
+  const [{ data: settings, error: settingsError }, isStaff, isAdmin] = await Promise.all([
+    supabase
+      .from("account_settings")
+      .select("volunteer_last_seen_at, volunteer_cancellations_seen_at")
+      .eq("id", user.id)
+      .maybeSingle(),
+    hasRoleAtLeast("coach"),
+    hasRoleAtLeast("admin"),
+  ]);
+
+  if (settingsError) {
+    throw new Error(settingsError.message);
+  }
+
+  const { count: newVolunteerCount, error: countError } = await supabase
+    .from("events")
+    .select("*", { count: "exact", head: true })
+    .eq("published", true)
+    .gte("starts_at", upcomingCutoffIso())
+    .gt("published_at", settings?.volunteer_last_seen_at ?? "1970-01-01T00:00:00Z");
+
+  if (countError) {
+    throw new Error(countError.message);
+  }
+
+  // "Has any active commitment" gate for the quick-access link below — RLS
+  // already scopes this to the caller's own rows, so no account_id filter
+  // is strictly needed, but it's kept explicit rather than relying on that
+  // silently, matching the convention in the /mine and [eventId] pages.
+  const { count: myCommitmentsCount, error: commitmentsCountError } = await supabase
+    .from("volunteer_signups")
+    .select("*", { count: "exact", head: true })
+    .eq("account_id", user.id)
+    .is("cancelled_at", null);
+
+  if (commitmentsCountError) {
+    throw new Error(commitmentsCountError.message);
+  }
+
+  // Shifts the CLUB cancelled since this member last opened
+  // /member/volunteer/mine. Same badge idea as newVolunteerCount above, keyed
+  // off its own marker column (volunteer_cancellations_seen_at) rather than
+  // volunteer_last_seen_at — browsing open requests must not dismiss "we took
+  // your shift away," and those are stamped by two different pages.
+  //
+  // Rows rather than a head-count query, because the scope test needs the
+  // slot's start_at and the staff-vs-member test needs cancelled_reason; both
+  // live in src/lib/volunteer/cancellations.ts so this and the /mine page
+  // cannot drift apart and badge something the page then hides. The set is
+  // small — RLS scopes it to this account's own signups, and the `.gt()`
+  // below has already dropped everything they have seen.
+  const { data: cancelledRows, error: cancelledError } = await supabase
+    .from("volunteer_signups")
+    .select("id, cancelled_at, cancelled_reason, volunteer_slots(start_at)")
+    .eq("account_id", user.id)
+    .not("cancelled_reason", "is", null)
+    .gt("cancelled_at", settings?.volunteer_cancellations_seen_at ?? "1970-01-01T00:00:00Z")
+    .returns<
+      {
+        id: string;
+        cancelled_at: string | null;
+        cancelled_reason: string | null;
+        volunteer_slots: { start_at: string | null } | null;
+      }[]
+    >();
+
+  if (cancelledError) {
+    throw new Error(cancelledError.message);
+  }
+
+  // The `.gt()` above is an index-friendly pre-filter; the unread rule itself
+  // is re-applied here so it lives in exactly one place (a NULL seen-at means
+  // "everything is unread", which the query expresses as an epoch fallback and
+  // the predicate expresses directly — they must not be able to disagree).
+  const cancelledByClubCount = (cancelledRows ?? []).filter(
+    (r) =>
+      isStaffCancelled(r) &&
+      isCancellationInScope(r.volunteer_slots?.start_at ?? null) &&
+      isUnreadCancellation(r.cancelled_at, settings?.volunteer_cancellations_seen_at)
+  ).length;
+
+  const portalLinks: PortalLink[] = [
+    {
+      href: "/member/volunteer",
+      label: "Volunteer",
+      description: "Sign up to help out at upcoming events.",
+      badge: newVolunteerCount ?? 0,
+    },
+    ...staticPortalLinks,
+    // Coach+ and admin-only respectively. Kept at the bottom of the list
+    // deliberately — Volunteer is the featured card and the reason this whole
+    // system exists (see DESIGN.md 2026-08-27), and these are staff tools most
+    // members never see at all.
+    ...(isStaff
+      ? [
+          {
+            href: "/member/staff/events",
+            label: "Manage events",
+            description: "Create and publish volunteer requests.",
+          },
+          {
+            href: "/member/staff/directory",
+            label: "Member directory",
+            description: "Look up contact info, classes, and emergency contacts.",
+          },
+        ]
+      : []),
+    ...(isAdmin
+      ? [
+          {
+            href: "/member/staff/roles",
+            label: "Manage roles",
+            description: "Grant coach and board access to member accounts.",
+          },
+        ]
+      : []),
+  ];
 
   return (
     <Section>
-      <Eyebrow>Member Dashboard</Eyebrow>
+      <div className="relative overflow-hidden">
+        {/* Faded backdrop photo, filling the whitespace to the right of the
+            max-w-2xl content column on wide viewports. Same grayscale +
+            contrast treatment as the homepage hero / CoachPortrait (see
+            DESIGN.md's "high-contrast monochrome" baseline), scoped to this
+            block only so it doesn't bleed into the solid purple-950 member
+            cards further down the page. */}
+        <div
+          aria-hidden="true"
+          className="hidden lg:block pointer-events-none select-none absolute inset-y-0 right-0 w-[46%] -z-10 [mask-image:radial-gradient(ellipse_75%_85%_at_78%_45%,black_35%,transparent_85%)] [-webkit-mask-image:radial-gradient(ellipse_75%_85%_at_78%_45%,black_35%,transparent_85%)]"
+        >
+          <Image
+            src="/img/Dashboard.jpg"
+            alt=""
+            fill
+            sizes="46vw"
+            className="object-cover object-[70%_40%] opacity-[0.12] [filter:grayscale(100%)_contrast(1.1)]"
+          />
+        </div>
 
-      <h1 className="mt-4 text-[clamp(40px,6vw,80px)] leading-[1.05]">
-        Welcome back,{" "}
-        <span className="italic">{ownerName}.</span>
-      </h1>
+        <div className="flex items-center justify-between gap-4 flex-wrap">
+          <Eyebrow>Member Dashboard</Eyebrow>
+          {/* Shown when there is EITHER a live commitment or an unread
+              cancellation. The count alone was the wrong gate once
+              cancellations exist: a member whose only shift the club just
+              cancelled has zero live commitments, so the link — and with it
+              the only notice they get — would disappear at exactly the moment
+              it mattered. */}
+          {(!!myCommitmentsCount || cancelledByClubCount > 0) && (
+            <Link
+              href="/member/volunteer/mine"
+              className="text-sm font-semibold text-purple-700 hover:text-purple-900 transition-colors inline-flex items-center gap-2"
+            >
+              <span>My commitments</span>
+              {cancelledByClubCount > 0 && (
+                <span
+                  className="inline-flex items-center justify-center min-w-[1.5em] h-[1.5em] px-1.5 text-xs font-semibold rounded-full bg-red-700 text-white"
+                  title="Shifts the club cancelled"
+                >
+                  {cancelledByClubCount}
+                </span>
+              )}
+              <span aria-hidden="true">&#8594;</span>
+            </Link>
+          )}
+        </div>
 
-      <StripRule className="mt-12 mb-12" />
+        <h1 className="mt-4 text-[clamp(40px,6vw,80px)] leading-[1.05]">
+          {ownerName ? (
+            <>
+              Welcome back, <span className="italic">{ownerName}.</span>
+            </>
+          ) : (
+            <>Welcome back.</>
+          )}
+        </h1>
+
+        <StripRule className="mt-12 mb-12" />
+
+        <div className="max-w-2xl">
+          <h2 className="text-[clamp(22px,3vw,32px)] leading-tight mb-8">
+            Member portal
+          </h2>
+
+          {/* Volunteer is always portalLinks[0] (see its construction above)
+              and is the system's primary action, so it gets the same
+              purple-950 card treatment as "Members on your account" below
+              instead of blending into the list — badge count carries over
+              unchanged. Everything else stays a plain hairline list, which
+              scales to any count without needing an even number of tiles
+              (a 2-column grid was tried and rejected for exactly that). */}
+          <Link
+            href={portalLinks[0].href}
+            className="group block bg-purple-950 text-bone rounded-[4px] p-8 md:p-10 mb-4 transition-colors hover:bg-purple-900"
+          >
+            <p className="font-display text-[clamp(24px,3vw,32px)] leading-tight flex items-center gap-3">
+              {portalLinks[0].label}
+              {!!portalLinks[0].badge && (
+                <span className="inline-flex items-center justify-center min-w-[1.5em] h-[1.5em] px-1.5 text-xs font-semibold rounded-full bg-brass text-ink">
+                  {portalLinks[0].badge}
+                </span>
+              )}
+            </p>
+            <p className="text-bone/75 text-sm mt-2 leading-relaxed max-w-md">
+              {portalLinks[0].description}
+            </p>
+            <div className="mt-6 pt-4 border-t border-bone/15 flex items-center justify-between">
+              <span className="text-sm font-semibold text-brass">
+                Go to {portalLinks[0].label}
+              </span>
+              <span
+                aria-hidden="true"
+                className="text-brass text-lg group-hover:translate-x-1 transition-transform"
+              >
+                &#8594;
+              </span>
+            </div>
+          </Link>
+
+          <ul className="space-y-0 divide-y divide-rule">
+            {portalLinks.slice(1).map((item) => (
+              <li key={item.href}>
+                <Link
+                  href={item.href}
+                  className="group flex items-start justify-between gap-6 py-4 hover:text-purple-700 transition-colors"
+                >
+                  <div>
+                    <p className="font-semibold text-ink group-hover:text-purple-700 transition-colors flex items-center gap-2">
+                      {item.label}
+                      {!!item.badge && (
+                        <span className="inline-flex items-center justify-center min-w-[1.5em] h-[1.5em] px-1.5 text-xs font-semibold rounded-full bg-brass text-ink">
+                          {item.badge}
+                        </span>
+                      )}
+                    </p>
+                    <p className="text-sm text-mute mt-0.5 leading-relaxed">
+                      {item.description}
+                    </p>
+                  </div>
+                  <span
+                    aria-hidden="true"
+                    className="text-brass mt-0.5 flex-shrink-0 text-lg"
+                  >
+                    &#8594;
+                  </span>
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </div>
+      </div>
+
+      <StripRule className="mt-16 mb-12" />
 
       <div className="flex items-end justify-between gap-4 flex-wrap max-w-2xl mb-8">
         <h2 className="text-[clamp(22px,3vw,32px)] leading-tight">
@@ -110,8 +464,21 @@ export default async function MemberDashboardPage() {
         </Link>
       </div>
 
+      {/* A supporter account (D14) legitimately has no fencers on it. The
+          heading and "Add a member" button above stay visible either way —
+          that link is their only route into enrollment if they later sign a
+          child up — but the grid needs to say something rather than render
+          as an empty div under a heading. */}
+      {athletes.length === 0 && (
+        <p className="text-mute max-w-2xl leading-relaxed">
+          No fencers on this account yet. Use{" "}
+          <span className="text-ink font-medium">Add a member</span> above to
+          enroll one.
+        </p>
+      )}
+
       <div className="grid grid-cols-1 gap-6 max-w-2xl">
-        {members.map((member) => (
+        {athletes.map((member) => (
           <div
             key={member.id}
             className="bg-purple-950 text-bone rounded-[4px] p-8 md:p-10"
@@ -177,38 +544,35 @@ export default async function MemberDashboardPage() {
         ))}
       </div>
 
-      <StripRule className="mt-16 mb-12" />
+      {adults.length > 0 && (
+        <>
+          <StripRule className="mt-16 mb-12" />
 
-      <div className="max-w-2xl">
-        <h2 className="text-[clamp(22px,3vw,32px)] leading-tight mb-8">
-          Member portal
-        </h2>
-        <ul className="space-y-0 divide-y divide-rule">
-          {portalLinks.map((item) => (
-            <li key={item.href}>
-              <Link
-                href={item.href}
-                className="group flex items-start justify-between gap-6 py-5 hover:text-purple-700 transition-colors"
-              >
-                <div>
-                  <p className="font-semibold text-ink group-hover:text-purple-700 transition-colors">
-                    {item.label}
-                  </p>
-                  <p className="text-sm text-mute mt-0.5 leading-relaxed">
-                    {item.description}
-                  </p>
-                </div>
-                <span
-                  aria-hidden="true"
-                  className="text-brass mt-0.5 flex-shrink-0 text-lg"
-                >
-                  &#8594;
-                </span>
-              </Link>
-            </li>
-          ))}
-        </ul>
-      </div>
+          <h2 className="text-[clamp(22px,3vw,32px)] leading-tight mb-8">
+            Adults on this account
+          </h2>
+
+          {/* Deliberately lighter than the purple-950 member cards above —
+              these adults aren't fencers with a season badge, just named
+              people available to volunteer. Card is the DESIGN.md-standard
+              hairline surface, not a second member-card treatment. */}
+          <div className="grid grid-cols-1 gap-4 max-w-2xl">
+            {adults.map((adult) => (
+              <Card key={adult.id} className="!p-6 md:!p-8">
+                <p className="font-display text-lg text-ink">
+                  {adult.first_name} {adult.last_name}
+                </p>
+                {/* Names the row's kind. Without it a supporter-only account
+                    renders as one name floating in a card with no context for
+                    why it's here and no season data to imply it. */}
+                <p className="mt-1 text-xs font-semibold uppercase tracking-[0.12em] text-mute">
+                  {adult.person_type === "volunteer" ? "Supporter" : "Guardian"}
+                </p>
+              </Card>
+            ))}
+          </div>
+        </>
+      )}
 
       <StripRule className="mt-12 mb-8" />
 

@@ -24,7 +24,7 @@ export async function Header() {
     : { href: "/login", label: "Member Login" };
 
   return (
-    <header className="relative border-b border-rule bg-paper">
+    <header className="relative border-b border-rule bg-paper print:hidden">
       <Container className="flex items-center justify-between py-5">
         <Link
           href="/"

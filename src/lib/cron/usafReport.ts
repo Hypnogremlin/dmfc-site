@@ -1,6 +1,17 @@
 import { createServiceClient } from "@/lib/supabase";
 import { Resend } from "resend";
-import { MEMBERSHIP_SEASON } from "@/lib/member-types";
+import { MEMBERSHIP_SEASON, type WeaponClass } from "@/lib/member-types";
+
+// Weapon slug → human label for the email body's fencer list. Mirrors
+// WEAPON_LABELS in src/emails/MembershipConfirmation.tsx — kept as a
+// separate literal rather than a shared import for the same reason noted
+// there (that file renders in a different, React-email context).
+const WEAPON_LABELS: Record<WeaponClass, string> = {
+  "foil-youth": "Foil (Youth)",
+  "foil-adult": "Foil (Adult)",
+  epee: "Épée",
+  saber: "Saber",
+};
 
 // Columns pulled for the report — exactly what the USA Fencing Bulk Uploader
 // template needs. No medical data is exported.
@@ -20,6 +31,7 @@ type MemberRow = {
   zip_code: string;
   citizenship_country: string;
   representing_country: string;
+  weapon_classes: WeaponClass[];
   // Agreements live on a separate member_waivers row (one per profile per
   // season), not on profiles itself — see 20260623_waivers_reshape_guardian_usafnum.sql.
   member_waivers: {
@@ -137,10 +149,16 @@ export async function runUsafReportPass() {
     .select(
       "id, first_name, last_name, birthday, sex_at_birth, usa_fencing_number, " +
         "contact_email, contact_phone, address_line1, address_line2, city, state, zip_code, " +
-        "citizenship_country, representing_country, " +
+        "citizenship_country, representing_country, weapon_classes, " +
         "member_waivers(season_year, individual_waiver_agreed, maapp_agreed, rules_club_athlete_agreed, athlete_coc_agreed)"
     )
     .eq("enrollment_complete", true)
+    // Guardian rows (person_type = 'guardian') default enrollment_complete
+    // to false, so they're already excluded above — but this path submits
+    // members to USA Fencing, the highest-consequence write in the
+    // codebase, so it must not rely on that being an accident. See
+    // VOLUNTEERS.md "Blast radius of person_type".
+    .eq("person_type", "athlete")
     .is("usaf_reported_at", null)
     .order("created_at", { ascending: true });
 
@@ -167,13 +185,24 @@ export async function runUsafReportPass() {
     "Des Moines Fencing Club <noreply@emails.desmoinesfencingclub.org>";
 
   const memberWord = count === 1 ? "member" : "members";
+
+  // Name + weapon only — no contact/address/DOB info in the email body.
+  // Full details are in the attached CSV.
+  const fencerList = members
+    .map((m) => {
+      const weapons = m.weapon_classes.map((w) => WEAPON_LABELS[w]).join(" / ");
+      return `- ${m.first_name} ${m.last_name} — ${weapons || "no weapon on file"}`;
+    })
+    .join("\n");
+
   const { error: sendError } = await resend.emails.send({
     from: FROM,
     to: recipient,
     ...(treasurerEmail ? { cc: treasurerEmail } : {}),
     subject: `New DMFC members for USA Fencing tracking — ${today} (${count})`,
     text:
-      `${count} new ${memberWord} completed enrollment since the last report.\n\n` +
+      `${count} new ${memberWord} completed enrollment since the last report:\n\n` +
+      `${fencerList}\n\n` +
       `For the President — the attached CSV (${filename}) is formatted for the ` +
       `USA Fencing Club Manager Bulk Uploader. Download it and upload as-is ` +
       `under Roster > Bulk Uploader > Start a new Upload, membership type ` +
@@ -199,6 +228,10 @@ export async function runUsafReportPass() {
   const { error: updateError } = await supabase
     .from("profiles")
     .update({ usaf_reported_at: reportedAt })
+    // Redundant with the fetch filter above (these ids only ever came from
+    // athlete rows), but the flag this sets is what marks a member reported
+    // to USA Fencing — belt-and-suspenders here costs nothing.
+    .eq("person_type", "athlete")
     .in(
       "id",
       members.map((m) => m.id)

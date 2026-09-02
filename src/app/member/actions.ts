@@ -99,10 +99,19 @@ export async function submitMembershipForm(
   if (profileId) {
     // Update an existing member. RLS limits this to the owner's own rows, so a
     // mismatched id simply affects zero rows — which we detect via .select().
+    // The `person_type` filter is the actual security boundary for "a
+    // guardian row cannot be pushed through the athlete form's write path" —
+    // src/app/member/enroll/page.tsx's guard against loading a guardian
+    // profile into this form is UX, not enforcement; a hand-crafted request
+    // straight to this action bypasses that page entirely. Unreachable today
+    // (no guardian rows exist until M3), but the filter belongs on the write
+    // path regardless, matching the belt-and-suspenders already applied to
+    // the read paths in VOLUNTEERS.md's "Blast radius of person_type".
     const { data: updated, error: profileError } = await supabase
       .from("profiles")
       .update(profilePayload)
       .eq("id", profileId)
+      .eq("person_type", "athlete")
       .select("id")
       .single();
 
@@ -265,11 +274,15 @@ export async function submitMembershipForm(
   }
 
   // 5. Every child write succeeded — now (and only now) mark the member
-  // enrollment complete.
+  // enrollment complete. `person_type` filter guards the write path the same
+  // way as the update above — a guardian row must never end up
+  // enrollment_complete, since that would put it in front of the weekly
+  // USAF report query (see src/lib/cron/usafReport.ts).
   const { error: completeError } = await supabase
     .from("profiles")
     .update({ enrollment_complete: true })
-    .eq("id", memberId);
+    .eq("id", memberId)
+    .eq("person_type", "athlete");
 
   if (completeError) {
     return { ok: false, error: completeError.message };
