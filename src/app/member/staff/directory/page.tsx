@@ -12,10 +12,14 @@ export const metadata: Metadata = {
 };
 
 // Shape of one row from staff_member_directory(). Hand-typed, matching the
-// RPC's RETURNS TABLE in 20260831_staff_member_directory.sql — this repo has
-// no generated Supabase types (see src/lib/volunteer/types.ts). Deliberately
-// missing sex_at_birth, gender_identity, and every waiver field: the RPC
-// itself never selects them, so there is nothing here to accidentally render.
+// RPC's RETURNS TABLE in 20260901_staff_directory_remove_medical.sql — this
+// repo has no generated Supabase types (see src/lib/volunteer/types.ts).
+// Deliberately missing sex_at_birth, gender_identity, and every waiver
+// field: the RPC itself never selects them, so there is nothing here to
+// accidentally render. medical_conditions/preferred_medical_system were
+// dropped from the RPC's return shape entirely (not just hidden here) —
+// there's no vetted secure channel for staff to see medical notes yet.
+// We'll likely bring this back once one exists.
 type EmergencyContactRow = {
   contact_order: 1 | 2;
   first_name: string;
@@ -48,8 +52,6 @@ type DirectoryRow = {
   guardian_last_name: string | null;
   guardian_relationship: string | null;
   guardian_phone: string | null;
-  medical_conditions: string | null;
-  preferred_medical_system: string | null;
   emergency_contacts: EmergencyContactRow[];
 };
 
@@ -115,8 +117,9 @@ export default async function StaffDirectoryPage({
           <h1 className="mt-4 text-[clamp(32px,5vw,56px)] leading-[1.05]">Member directory</h1>
           <p className="mt-4 text-mute max-w-xl leading-relaxed">
             Contact info, emergency contacts, and class enrollment for every
-            member on the club. Sex at birth and signed waivers are not shown
-            here.
+            member on the club. Sex at birth, signed waivers, and medical
+            notes are not shown here — medical notes will likely return once
+            we have a secure way to surface them.
           </p>
         </div>
         <PrintDirectoryButton />
@@ -234,16 +237,6 @@ export default async function StaffDirectoryPage({
                         {ec.email ? ` · ${ec.email}` : ""}
                       </p>
                     ))}
-                  </div>
-                )}
-
-                {(member.medical_conditions || member.preferred_medical_system) && (
-                  <div className="mt-3 pt-3 border-t border-rule text-sm">
-                    <p className="text-xs font-semibold uppercase tracking-[0.1em] text-mute mb-1">Medical</p>
-                    {member.medical_conditions && <p className="text-mute">{member.medical_conditions}</p>}
-                    {member.preferred_medical_system && (
-                      <p className="text-mute">Prefers: {member.preferred_medical_system}</p>
-                    )}
                   </div>
                 )}
               </li>
