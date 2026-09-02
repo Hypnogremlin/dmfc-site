@@ -158,8 +158,9 @@ export default async function MyVolunteerCommitmentsPage() {
             Cancelled by DMFC
           </p>
           <p className="text-sm text-mute mt-2 leading-relaxed">
-            {cancelledByClub.length === 1 ? "This shift was" : "These shifts were"} cancelled by
-            the club. You don&apos;t need to come.
+            {cancelledByClub.length === 1
+              ? "This shift was cancelled by the club. You don't need to come."
+              : "These shifts were cancelled by the club. You don't need to come."}
           </p>
           <ul className="divide-y divide-red-200 mt-4">
             {cancelledByClub.map((s) => (
