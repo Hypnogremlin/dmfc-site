@@ -93,7 +93,6 @@ export function VolunteerProfileForm({ userEmail }: { userEmail: string }) {
         onChange={(v) => set("contact_phone", v)}
         required
         error={errors.contact_phone}
-        hint="Used on tournament mornings, when email is too slow."
       />
 
       {formError && (
