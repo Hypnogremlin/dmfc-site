@@ -6,28 +6,16 @@ import { Eyebrow } from "@/components/Eyebrow";
 import { StripRule } from "@/components/StripRule";
 import { SlotCard } from "@/components/volunteer/SlotCard";
 import { candidatesFor, type CandidateProfile } from "@/lib/volunteer/candidates";
+import {
+  formatClubDate as formatDate,
+  formatClubDayNumber as formatDayNumber,
+  formatClubMonthShort as formatMonthShort,
+} from "@/lib/volunteer/datetime";
 import type { VolunteerEvent, VolunteerSlot } from "@/lib/volunteer/types";
 
 export const metadata: Metadata = {
   title: "Volunteer",
 };
-
-function formatDate(iso: string): string {
-  return new Date(iso).toLocaleDateString("en-US", {
-    weekday: "short",
-    month: "short",
-    day: "numeric",
-    year: "numeric",
-  });
-}
-
-function formatMonthShort(iso: string): string {
-  return new Date(iso).toLocaleDateString("en-US", { month: "short" });
-}
-
-function formatDayNumber(iso: string): string {
-  return new Date(iso).toLocaleDateString("en-US", { day: "numeric" });
-}
 
 export default async function VolunteerEventPage({
   params,
@@ -85,6 +73,13 @@ export default async function VolunteerEventPage({
       "id, person_type, first_name, last_name, birthday, contact_phone, guardian_first_name, guardian_last_name, guardian_relationship, guardian_phone"
     )
     .eq("account_owner_id", user.id)
+    // Deterministic order is load-bearing, not cosmetic: candidatesFor()
+    // sorts stably, so input order breaks every tie — and it decides which
+    // adult the picker preselects. Without an .order() Postgres is free to
+    // return these rows differently between two loads of the same page, so
+    // the default attendee could change under a member mid-signup. created_at
+    // matches the precedent in src/app/member/page.tsx.
+    .order("created_at", { ascending: true })
     .returns<CandidateProfile[]>();
 
   if (profilesError) {

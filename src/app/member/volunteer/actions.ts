@@ -38,47 +38,44 @@ export async function claimSlot(slotId: string, selection: ClaimSelection): Prom
   } else {
     // "phantom" — the first tap on this guardian identity creates their
     // profile, seeded from the source athlete's guardian_* fields (D3).
-    // Never written back to those source columns: guardian_* is waiver
-    // evidence for a specific athlete/season, and this new row is an
-    // independent, operational record of a person who works shifts.
-    const { data: source, error: sourceError } = await supabase
-      .from("profiles")
-      .select("guardian_first_name, guardian_last_name, guardian_phone")
-      .eq("id", selection.seededFrom)
-      .eq("account_owner_id", user.id)
-      .maybeSingle();
+    //
+    // This goes through a SECURITY DEFINER RPC rather than an INSERT from
+    // this session client, for two reasons that are not interchangeable:
+    //
+    //   * The member supplies one uuid and nothing else. The old INSERT sent
+    //     a whole row from the client, and profiles' only policy is an
+    //     unrestricted FOR ALL on account_owner_id — so a hand-crafted
+    //     request could mint a birthday-less 'guardian' row and walk it
+    //     straight through claim_volunteer_slot's adults_only check. See
+    //     supabase/migrations/20260831_volunteer_guardian_profile_rpc.sql.
+    //   * The RPC is lookup-or-create. The old INSERT had no lookup and
+    //     guardians are (correctly) not covered by any one-per-account unique
+    //     index — two parents per account are legitimate — so a double-tap
+    //     produced two rows for one human with distinct ids, which
+    //     volunteer_signups_live_idx cannot collapse. One person could then
+    //     hold two seats in the same slot.
+    //
+    // Never writes back to the source guardian_* columns: those are waiver
+    // evidence for a specific athlete and season, this row is an operational
+    // record of a person who works shifts (D3).
+    const { data: guardianId, error: guardianError } = await supabase.rpc(
+      "create_guardian_profile",
+      { p_seeded_from: selection.seededFrom }
+    );
 
-    if (sourceError) {
-      return { ok: false, error: sourceError.message };
-    }
-    // candidatesFor() already excludes a phantom with no guardian_phone (see
-    // src/lib/volunteer/candidates.ts), so this branch should be unreachable
-    // from the picker — kept as defense in depth against a stale candidate
-    // list rather than trusted to never fire.
-    if (!source || !source.guardian_first_name || !source.guardian_phone) {
+    if (guardianError || !guardianId) {
+      // The RPC's raises are all "this candidate was never claimable"
+      // conditions (not your profile, no name, no phone on file) — the
+      // picker already filters those out (candidatesFor() drops a phantom
+      // with no guardian_phone), so reaching here means a stale candidate
+      // list, not something the member can fix by reading the raw message.
       return {
         ok: false,
-        error: "That guardian's record is missing a phone number. Use \"Someone else…\" instead.",
+        error:
+          "That guardian's record is incomplete. Refresh the page, or use \"Someone else…\" instead.",
       };
     }
-
-    const { data: created, error: createError } = await supabase
-      .from("profiles")
-      .insert({
-        account_owner_id: user.id,
-        person_type: "guardian",
-        first_name: source.guardian_first_name,
-        last_name: source.guardian_last_name ?? "",
-        contact_email: user.email,
-        contact_phone: source.guardian_phone,
-      })
-      .select("id")
-      .single();
-
-    if (createError || !created) {
-      return { ok: false, error: createError?.message ?? "Could not create the guardian profile." };
-    }
-    attendeeId = created.id;
+    attendeeId = guardianId as string;
   }
 
   const { error: claimError } = await supabase.rpc("claim_volunteer_slot", {
@@ -135,5 +132,32 @@ export async function markVolunteerSeen(): Promise<void> {
   await supabase
     .from("account_settings")
     .update({ volunteer_last_seen_at: new Date().toISOString() })
+    .eq("id", user.id);
+}
+
+// The same shape as markVolunteerSeen(), for the "your shift was cancelled"
+// badge, and called from /member/volunteer/mine — the page that actually shows
+// the cancellations.
+//
+// A SEPARATE column from volunteer_last_seen_at on purpose. Browsing the list
+// of open requests must not silently dismiss a notice that the club took a
+// shift away from you; those are different events and they are marked seen by
+// different pages.
+//
+// Best-effort, and it discards its own error exactly as markVolunteerSeen()
+// does, for the same reason: a failure here must not stop the member from
+// reading the very list they came for. The cost is that a broken write is
+// invisible in the app — which is why the migration's post-apply checklist
+// asks for a real-session UPDATE of this column specifically.
+export async function markVolunteerCancellationsSeen(): Promise<void> {
+  const supabase = await createSessionClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return;
+
+  await supabase
+    .from("account_settings")
+    .update({ volunteer_cancellations_seen_at: new Date().toISOString() })
     .eq("id", user.id);
 }

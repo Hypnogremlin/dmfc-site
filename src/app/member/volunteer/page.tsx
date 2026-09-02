@@ -6,7 +6,12 @@ import { Section } from "@/components/Section";
 import { Eyebrow } from "@/components/Eyebrow";
 import { StripRule } from "@/components/StripRule";
 import { markVolunteerSeen } from "./actions";
-import { upcomingCutoffIso } from "@/lib/volunteer/datetime";
+import {
+  formatClubDate as formatDate,
+  formatClubDayNumber as formatDayNumber,
+  formatClubMonthShort as formatMonthShort,
+  upcomingCutoffIso,
+} from "@/lib/volunteer/datetime";
 import type { VolunteerEvent } from "@/lib/volunteer/types";
 
 export const metadata: Metadata = {
@@ -15,23 +20,6 @@ export const metadata: Metadata = {
 };
 
 type EventRow = Pick<VolunteerEvent, "id" | "title" | "starts_at" | "location">;
-
-function formatDate(iso: string): string {
-  return new Date(iso).toLocaleDateString("en-US", {
-    weekday: "short",
-    month: "short",
-    day: "numeric",
-    year: "numeric",
-  });
-}
-
-function formatMonthShort(iso: string): string {
-  return new Date(iso).toLocaleDateString("en-US", { month: "short" });
-}
-
-function formatDayNumber(iso: string): string {
-  return new Date(iso).toLocaleDateString("en-US", { day: "numeric" });
-}
 
 export default async function VolunteerListPage() {
   const supabase = await createSessionClient();

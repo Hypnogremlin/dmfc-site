@@ -11,6 +11,11 @@ import type { MemberSummary, WeaponClass } from "@/lib/member-types";
 import { isMinor } from "@/lib/age";
 import { hasRoleAtLeast } from "@/lib/roles";
 import { upcomingCutoffIso } from "@/lib/volunteer/datetime";
+import {
+  isCancellationInScope,
+  isStaffCancelled,
+  isUnreadCancellation,
+} from "@/lib/volunteer/cancellations";
 import Link from "next/link";
 
 export const metadata: Metadata = {
@@ -191,7 +196,11 @@ export default async function MemberDashboardPage() {
   // how the two would eventually disagree. Each is a single indexed lookup on
   // a 1-row-per-login table.
   const [{ data: settings, error: settingsError }, isStaff, isAdmin] = await Promise.all([
-    supabase.from("account_settings").select("volunteer_last_seen_at").eq("id", user.id).maybeSingle(),
+    supabase
+      .from("account_settings")
+      .select("volunteer_last_seen_at, volunteer_cancellations_seen_at")
+      .eq("id", user.id)
+      .maybeSingle(),
     hasRoleAtLeast("coach"),
     hasRoleAtLeast("admin"),
   ]);
@@ -224,6 +233,48 @@ export default async function MemberDashboardPage() {
   if (commitmentsCountError) {
     throw new Error(commitmentsCountError.message);
   }
+
+  // Shifts the CLUB cancelled since this member last opened
+  // /member/volunteer/mine. Same badge idea as newVolunteerCount above, keyed
+  // off its own marker column (volunteer_cancellations_seen_at) rather than
+  // volunteer_last_seen_at — browsing open requests must not dismiss "we took
+  // your shift away," and those are stamped by two different pages.
+  //
+  // Rows rather than a head-count query, because the scope test needs the
+  // slot's start_at and the staff-vs-member test needs cancelled_reason; both
+  // live in src/lib/volunteer/cancellations.ts so this and the /mine page
+  // cannot drift apart and badge something the page then hides. The set is
+  // small — RLS scopes it to this account's own signups, and the `.gt()`
+  // below has already dropped everything they have seen.
+  const { data: cancelledRows, error: cancelledError } = await supabase
+    .from("volunteer_signups")
+    .select("id, cancelled_at, cancelled_reason, volunteer_slots(start_at)")
+    .eq("account_id", user.id)
+    .not("cancelled_reason", "is", null)
+    .gt("cancelled_at", settings?.volunteer_cancellations_seen_at ?? "1970-01-01T00:00:00Z")
+    .returns<
+      {
+        id: string;
+        cancelled_at: string | null;
+        cancelled_reason: string | null;
+        volunteer_slots: { start_at: string | null } | null;
+      }[]
+    >();
+
+  if (cancelledError) {
+    throw new Error(cancelledError.message);
+  }
+
+  // The `.gt()` above is an index-friendly pre-filter; the unread rule itself
+  // is re-applied here so it lives in exactly one place (a NULL seen-at means
+  // "everything is unread", which the query expresses as an epoch fallback and
+  // the predicate expresses directly — they must not be able to disagree).
+  const cancelledByClubCount = (cancelledRows ?? []).filter(
+    (r) =>
+      isStaffCancelled(r) &&
+      isCancellationInScope(r.volunteer_slots?.start_at ?? null) &&
+      isUnreadCancellation(r.cancelled_at, settings?.volunteer_cancellations_seen_at)
+  ).length;
 
   const portalLinks: PortalLink[] = [
     {
@@ -286,12 +337,27 @@ export default async function MemberDashboardPage() {
 
         <div className="flex items-center justify-between gap-4 flex-wrap">
           <Eyebrow>Member Dashboard</Eyebrow>
-          {!!myCommitmentsCount && (
+          {/* Shown when there is EITHER a live commitment or an unread
+              cancellation. The count alone was the wrong gate once
+              cancellations exist: a member whose only shift the club just
+              cancelled has zero live commitments, so the link — and with it
+              the only notice they get — would disappear at exactly the moment
+              it mattered. */}
+          {(!!myCommitmentsCount || cancelledByClubCount > 0) && (
             <Link
               href="/member/volunteer/mine"
-              className="text-sm font-semibold text-purple-700 hover:text-purple-900 transition-colors"
+              className="text-sm font-semibold text-purple-700 hover:text-purple-900 transition-colors inline-flex items-center gap-2"
             >
-              My commitments &#8594;
+              <span>My commitments</span>
+              {cancelledByClubCount > 0 && (
+                <span
+                  className="inline-flex items-center justify-center min-w-[1.5em] h-[1.5em] px-1.5 text-xs font-semibold rounded-full bg-red-700 text-white"
+                  title="Shifts the club cancelled"
+                >
+                  {cancelledByClubCount}
+                </span>
+              )}
+              <span aria-hidden="true">&#8594;</span>
             </Link>
           )}
         </div>

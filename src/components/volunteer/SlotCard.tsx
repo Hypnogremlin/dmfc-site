@@ -5,15 +5,9 @@ import { useRouter } from "next/navigation";
 import { ConfirmButton } from "@/components/ConfirmButton";
 import { AttendeePicker } from "./AttendeePicker";
 import { cancelSignup } from "@/app/member/volunteer/actions";
+import { formatClubTimeRange } from "@/lib/volunteer/datetime";
 import type { VolunteerSlot } from "@/lib/volunteer/types";
 import type { Candidate } from "@/lib/volunteer/candidates";
-
-function formatTimeRange(startAt: string | null, endsAt: string | null): string | null {
-  if (!startAt) return null;
-  const fmt = (iso: string) =>
-    new Date(iso).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
-  return endsAt ? `${fmt(startAt)} – ${fmt(endsAt)}` : fmt(startAt);
-}
 
 // One signup per attendee, so an account can hold more than one live signup
 // on the same slot (Mom and Dad both work the check-in table) — mySignups is
@@ -35,7 +29,7 @@ export function SlotCard({
   const [isPending, startTransition] = useTransition();
   const [cancelError, setCancelError] = useState<string | null>(null);
   const full = filled >= slot.capacity;
-  const timeRange = formatTimeRange(slot.start_at, slot.ends_at);
+  const timeRange = formatClubTimeRange(slot.start_at, slot.ends_at);
 
   // Someone already signed up for this slot shouldn't be offered again in
   // the picker — attempting it would just bounce off the DB's unique index.

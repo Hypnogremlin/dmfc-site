@@ -5,6 +5,7 @@ import { Section } from "@/components/Section";
 import { Eyebrow } from "@/components/Eyebrow";
 import { StripRule } from "@/components/StripRule";
 import { Button } from "@/components/Button";
+import { formatClubDate as formatDate } from "@/lib/volunteer/datetime";
 import type { VolunteerEvent } from "@/lib/volunteer/types";
 
 export const metadata: Metadata = {
@@ -12,15 +13,6 @@ export const metadata: Metadata = {
 };
 
 type EventRow = Pick<VolunteerEvent, "id" | "title" | "starts_at" | "published">;
-
-function formatDate(iso: string): string {
-  return new Date(iso).toLocaleDateString("en-US", {
-    weekday: "short",
-    month: "short",
-    day: "numeric",
-    year: "numeric",
-  });
-}
 
 export default async function StaffEventsPage() {
   const supabase = await createSessionClient();

@@ -12,6 +12,24 @@ function candidateKey(c: Candidate): string {
   return "other";
 }
 
+// Bare names are ambiguous in exactly the household this feature exists for:
+// "Holland Reyes" and "Zane Reyes" tell a parent nothing about which one the
+// radio is pointing at. Mirrors the disambiguation already rendered on
+// /member/staff/roles — relationship lowercased in parens, "(minor)" for a
+// minor — so one vocabulary describes these people everywhere.
+function candidateQualifier(c: Candidate): string | null {
+  if (c.kind === "other") return null;
+  if (c.kind === "phantom") return c.relationship ? c.relationship.toLowerCase() : "guardian";
+  if (c.isGuardian) return c.relationship ? c.relationship.toLowerCase() : "guardian";
+  return c.isMinor ? "minor" : null;
+}
+
+function candidateLabel(c: Candidate): string {
+  if (c.kind === "other") return "Someone else…";
+  const qualifier = candidateQualifier(c);
+  return qualifier ? `${c.name} (${qualifier})` : c.name;
+}
+
 function selectionFor(c: Candidate, otherName: string): ClaimSelection | null {
   if (c.kind === "profile") return { kind: "profile", profileId: c.profileId };
   if (c.kind === "phantom") return { kind: "phantom", seededFrom: c.seededFrom };
@@ -98,7 +116,7 @@ export function AttendeePicker({
           <legend className="text-sm font-semibold text-ink mb-1">Who&rsquo;s volunteering?</legend>
           {eligible.map((c) => {
             const key = candidateKey(c);
-            const label = c.kind === "other" ? "Someone else…" : c.name;
+            const label = candidateLabel(c);
             return (
               <label key={key} className="flex items-center gap-2 text-sm text-ink">
                 <input
@@ -112,6 +130,20 @@ export function AttendeePicker({
             );
           })}
         </fieldset>
+      )}
+
+      {/* With one real candidate the radio group is suppressed (a one-option
+          radio is noise) — but the name must not vanish with it. Before this
+          line existed the button read a bare "Sign up" and the volunteer only
+          learned who had been signed up after the page refreshed, which is
+          worst in precisely the case this feature targets: a single-minor
+          household on an adults-only slot, where the sole eligible candidate
+          is the guardian and nothing on screen said so. */}
+      {!showPicker && selectedCandidate && selectedCandidate.kind !== "other" && (
+        <p className="text-sm text-mute">
+          Signing up{" "}
+          <span className="text-ink font-semibold">{candidateLabel(selectedCandidate)}</span>.
+        </p>
       )}
 
       {selectedCandidate?.kind === "other" && (

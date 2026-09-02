@@ -21,7 +21,22 @@ export type CandidateProfile = Pick<
 >;
 
 export type Candidate =
-  | { kind: "profile"; profileId: string; name: string; phone: string | null; isMinor: boolean }
+  | {
+      kind: "profile";
+      profileId: string;
+      name: string;
+      phone: string | null;
+      isMinor: boolean;
+      // True when this row IS a guardian identity: either a person_type
+      // 'guardian' row, or an adult who also appears as a phantom guardian on
+      // a child's record and absorbed that phantom during dedupe (an adult who
+      // both fences and is the listed parent). Drives both the ordering below
+      // and the picker's label.
+      isGuardian: boolean;
+      // "Father", "Grandmother" — free text, from guardian_relationship.
+      // Null for an adult athlete or a volunteer who guards nobody.
+      relationship: string | null;
+    }
   | {
       kind: "phantom";
       name: string;
@@ -31,6 +46,41 @@ export type Candidate =
       isMinor: false;
     }
   | { kind: "other" };
+
+// Ordering rank. Lower sorts first.
+//
+// THE RULE (owner directive, 2026-08-31): **a guardian is the default.** The
+// whole feature exists because a parent signs a child up and the check-in
+// roster then reads a twelve-year-old's name (VOLUNTEERS.md, "The problem we
+// are solving"). Preselecting the child reproduces exactly that bug for any
+// parent who taps "Sign up" without reading the radio group, so guardians
+// come first and minors sort last:
+//
+//   0  guardian identities — real 'guardian' rows first, then phantoms
+//      (both share this rank; real rows are pushed before phantoms below, and
+//      the sort is stable, so a materialized guardian outranks an unmaterialized
+//      one without needing its own rank)
+//   1  other adults — adult athletes and 'volunteer' rows (D14)
+//   2  minor athletes
+//   3  "Someone else…"
+//
+// **Several adults in one household** (two parents; or an adult who both
+// fences and is a listed guardian) all land in rank 0 or 1, and ties are
+// broken by *input order only* — the sort is stable and the caller passes
+// profiles ordered by created_at (see the volunteer event page). No attempt is
+// made to guess which parent is showing up: any such guess would be wrong half
+// the time, and the picker is rendered in exactly this case so the household
+// can say. What matters is that the guess is (a) an adult and (b) the same
+// adult on every page load.
+//
+// Note that an adult athlete who is also a listed guardian ranks 0, not 1,
+// because dedupe merges the phantom into their real row and sets isGuardian.
+function rank(c: Candidate): number {
+  if (c.kind === "other") return 3;
+  if (c.kind === "phantom") return 0;
+  if (c.isGuardian) return 0;
+  return c.isMinor ? 2 : 1;
+}
 
 // Normalizes a name+phone pair to a dedupe key. Strips everything but
 // letters/digits so "(515) 555-0100" and "515-555-0100" collide, and so does
@@ -65,6 +115,12 @@ export function candidatesFor(profiles: CandidateProfile[]): Candidate[] {
       name: `${p.first_name} ${p.last_name}`,
       phone: p.contact_phone || null,
       isMinor: minor,
+      isGuardian: p.person_type === "guardian",
+      // A 'guardian' row carries its own guardian_relationship, seeded from
+      // the athlete it was created from (create_guardian_profile). On an
+      // athlete or volunteer row those columns describe somebody else's
+      // parent, so they are not this candidate's relationship.
+      relationship: p.person_type === "guardian" ? p.guardian_relationship : null,
     });
   }
 
@@ -95,12 +151,30 @@ export function candidatesFor(profiles: CandidateProfile[]): Candidate[] {
     if (c.kind === "other") continue;
     const key = dedupeKey(c.name, c.phone);
     const existing = byKey.get(key);
-    if (!existing || (existing.kind === "phantom" && c.kind === "profile")) {
+    if (!existing) {
       byKey.set(key, c);
+      continue;
     }
+    // A collision means the same human reached this function twice. The real
+    // profile always survives — but the phantom carries the fact that this
+    // person is somebody's guardian, and their relationship word, so that is
+    // merged onto the survivor rather than discarded. Without this, Holland
+    // (who both fences and is Zane's father) would rank as a plain adult and
+    // could lose the default to a phantom of his spouse.
+    const winner = existing.kind === "phantom" && c.kind === "profile" ? c : existing;
+    const loser = winner === existing ? c : existing;
+    if (winner.kind === "profile" && loser.kind === "phantom") {
+      winner.isGuardian = true;
+      winner.relationship = winner.relationship ?? loser.relationship;
+    }
+    byKey.set(key, winner);
   }
 
-  return [...byKey.values(), { kind: "other" }];
+  // 5. Guardians first, minors last — see rank() above. Stable, so input order
+  // (created_at, per the caller) breaks every tie.
+  const resolved = [...byKey.values()].sort((a, b) => rank(a) - rank(b));
+
+  return [...resolved, { kind: "other" }];
 }
 
 // Per VOLUNTEERS.md: render the picker only when there's more than one real

@@ -4,6 +4,7 @@ import { Section } from "@/components/Section";
 import { Eyebrow } from "@/components/Eyebrow";
 import { StripRule } from "@/components/StripRule";
 import { candidatesFor, type CandidateProfile } from "@/lib/volunteer/candidates";
+import { CLUB_TIME_ZONE } from "@/lib/volunteer/datetime";
 import { RoleControl } from "./RoleControl";
 
 export const metadata: Metadata = {
@@ -25,11 +26,18 @@ type AccountRow = {
   people: CandidateProfile[];
 };
 
+// These are audit timestamps (signed up, last signed in, role granted), not
+// event times, so they don't go through the formatClub* helpers — the shape
+// here has no weekday. They are still pinned to the club's timezone: rendered
+// on Vercel (UTC) a grant made at 7pm Central would print as the next day,
+// and "when did I make this person a coach" should read in the reader's own
+// calendar. Date-only display, so the pin only ever matters near midnight.
 function formatDate(iso: string): string {
   return new Date(iso).toLocaleDateString("en-US", {
     month: "short",
     day: "numeric",
     year: "numeric",
+    timeZone: CLUB_TIME_ZONE,
   });
 }
 

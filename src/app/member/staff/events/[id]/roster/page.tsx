@@ -6,6 +6,11 @@ import { Section } from "@/components/Section";
 import { Eyebrow } from "@/components/Eyebrow";
 import { StripRule } from "@/components/StripRule";
 import { PrintRosterButton } from "@/components/volunteer/PrintRosterButton";
+import { StaffCancelControl } from "@/components/volunteer/StaffCancelControl";
+import {
+  formatClubDate as formatDate,
+  formatClubTimeRange as formatTimeRange,
+} from "@/lib/volunteer/datetime";
 import type { VolunteerEvent, VolunteerSlot } from "@/lib/volunteer/types";
 
 export const metadata: Metadata = {
@@ -19,22 +24,6 @@ type RosterRow = {
   attendee_phone: string | null;
   notes: string | null;
 };
-
-function formatDate(iso: string): string {
-  return new Date(iso).toLocaleDateString("en-US", {
-    weekday: "short",
-    month: "short",
-    day: "numeric",
-    year: "numeric",
-  });
-}
-
-function formatTimeRange(startAt: string | null, endsAt: string | null): string | null {
-  if (!startAt) return null;
-  const fmt = (iso: string) =>
-    new Date(iso).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
-  return endsAt ? `${fmt(startAt)} – ${fmt(endsAt)}` : fmt(startAt);
-}
 
 export default async function EventRosterPage({
   params,
@@ -157,11 +146,16 @@ export default async function EventRosterPage({
                             actually useful on a printed sheet; an always-empty
                             column isn't. */}
                         <th className="font-medium pb-1 hidden print:table-cell">Signature</th>
+                        {/* Screen only — the printed sheet is a sign-in sheet,
+                            not a control panel. */}
+                        <th className="font-medium pb-1 print:hidden">
+                          <span className="sr-only">Cancel</span>
+                        </th>
                       </tr>
                     </thead>
                     <tbody>
                       {signups.map((row) => (
-                        <tr key={row.signup_id} className="border-b border-rule last:border-0">
+                        <tr key={row.signup_id} className="border-b border-rule last:border-0 align-top">
                           <td className="py-2 pr-4 text-ink">{row.attendee_name}</td>
                           <td className="py-2 pr-4 text-mute tabular">
                             {row.attendee_phone ?? "—"}
@@ -171,10 +165,42 @@ export default async function EventRosterPage({
                               &nbsp;
                             </span>
                           </td>
+                          {/* The per-person control expands inline inside the
+                              cell rather than in a modal — same inline-confirm
+                              approach ConfirmButton established for the staff
+                              event form, since this codebase has no dialog
+                              primitive. */}
+                          <td className="py-2 text-right print:hidden">
+                            <StaffCancelControl
+                              target={{
+                                kind: "signup",
+                                signupId: row.signup_id,
+                                who: row.attendee_name,
+                              }}
+                            />
+                          </td>
                         </tr>
                       ))}
                     </tbody>
                   </table>
+                )}
+
+                {/* Clearing the whole role is the action that actually unblocks
+                    removing this slot on the edit form, or deleting the event —
+                    both of which refuse while any live signup exists, and both
+                    of whose error messages now point here. Offered only when
+                    there is somebody to remove. */}
+                {signups.length > 0 && (
+                  <div className="mt-4 print:hidden">
+                    <StaffCancelControl
+                      target={{
+                        kind: "slot",
+                        slotId: slot.id,
+                        roleName: slot.role_name,
+                        count: signups.length,
+                      }}
+                    />
+                  </div>
                 )}
               </div>
             );

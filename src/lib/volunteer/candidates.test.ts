@@ -269,3 +269,187 @@ describe("candidatesFor", () => {
     expect(shouldShowPicker(candidates)).toBe(true);
   });
 });
+
+// Ordering (owner directive, 2026-08-31). candidatesFor() returns the picker's
+// render order AND its default — AttendeePicker preselects the first eligible
+// candidate — so these cases are what stops the picker from reproducing the
+// bug the feature was built to fix: a parent taps "Sign up" without reading
+// the radio group and the roster reads their twelve-year-old's name.
+describe("candidatesFor ordering", () => {
+  it("a guardian is the default when one exists — the minor never leads", () => {
+    const candidates = candidatesFor([
+      profile({
+        id: "c1",
+        first_name: "Zane",
+        last_name: "Reyes",
+        birthday: MINOR_BIRTHDAY,
+        contact_phone: "5155550101",
+        guardian_first_name: "Holland",
+        guardian_last_name: "Reyes",
+        guardian_relationship: "Father",
+        guardian_phone: "5155550100",
+      }),
+    ]);
+    expect(candidates[0]).toMatchObject({ kind: "phantom", name: "Holland Reyes" });
+    // And the minor is not merely second by accident — he is last before the
+    // "Someone else…" hatch.
+    expect(candidates[candidates.length - 2]).toMatchObject({ name: "Zane Reyes", isMinor: true });
+  });
+
+  it("minors sort last, behind every adult on the account", () => {
+    const dad = {
+      guardian_first_name: "Holland",
+      guardian_last_name: "Reyes",
+      guardian_relationship: "Father",
+      guardian_phone: "5155550100",
+    };
+    const candidates = candidatesFor([
+      profile({ id: "c1", first_name: "Zane", birthday: MINOR_BIRTHDAY, contact_phone: "5155550101", ...dad }),
+      profile({ id: "c2", first_name: "Wren", birthday: MINOR_BIRTHDAY, contact_phone: "5155550103", ...dad }),
+      profile({ id: "a1", first_name: "Priya", last_name: "Reyes", contact_phone: "5155550102" }),
+    ]);
+    const real = candidates.filter((c) => c.kind !== "other");
+    const firstMinor = real.findIndex((c) => c.kind === "profile" && c.isMinor);
+    const lastAdult = real.map((c) => !c.isMinor).lastIndexOf(true);
+    expect(firstMinor).toBeGreaterThan(lastAdult);
+    // Guardian ahead of the adult athlete who guards nobody.
+    expect(real[0]).toMatchObject({ kind: "phantom", name: "Holland Reyes" });
+  });
+
+  it("a real guardian row outranks a phantom, and both outrank adult athletes", () => {
+    const candidates = candidatesFor([
+      profile({ id: "a1", first_name: "Uncle", last_name: "Reyes", contact_phone: "5155550900" }),
+      profile({
+        id: "g1",
+        person_type: "guardian",
+        first_name: "Priya",
+        last_name: "Reyes",
+        birthday: null,
+        contact_phone: "5155550102",
+        guardian_relationship: "Mother",
+      }),
+      profile({
+        id: "c1",
+        first_name: "Zane",
+        last_name: "Reyes",
+        birthday: MINOR_BIRTHDAY,
+        contact_phone: "5155550101",
+        guardian_first_name: "Holland",
+        guardian_last_name: "Reyes",
+        guardian_relationship: "Father",
+        guardian_phone: "5155550100",
+      }),
+    ]);
+    const real = candidates.filter((c) => c.kind !== "other");
+    expect(real.map((c) => c.name)).toEqual([
+      "Priya Reyes", // real guardian row
+      "Holland Reyes", // phantom guardian
+      "Uncle Reyes", // adult athlete, guards nobody
+      "Zane Reyes", // minor, always last
+    ]);
+    expect(real[0]).toMatchObject({ kind: "profile", isGuardian: true, relationship: "Mother" });
+  });
+
+  it("an adult who both fences and is a listed guardian keeps the guardian rank after dedupe", () => {
+    // Holland's phantom merges into his real athlete row. The merge must carry
+    // the guardian fact across, or he would rank as a plain adult and lose the
+    // default to his spouse's phantom.
+    const candidates = candidatesFor([
+      profile({ id: "a1", first_name: "Nora", last_name: "Vance", contact_phone: "5155550700" }),
+      profile({ id: "a2", first_name: "Holland", last_name: "Reyes", contact_phone: "5155550100" }),
+      profile({
+        id: "c1",
+        first_name: "Zane",
+        last_name: "Reyes",
+        birthday: MINOR_BIRTHDAY,
+        contact_phone: "5155550101",
+        guardian_first_name: "Holland",
+        guardian_last_name: "Reyes",
+        guardian_relationship: "Father",
+        guardian_phone: "5155550100",
+      }),
+    ]);
+    const real = candidates.filter((c) => c.kind !== "other");
+    expect(real[0]).toMatchObject({
+      kind: "profile",
+      profileId: "a2",
+      name: "Holland Reyes",
+      isGuardian: true,
+      relationship: "Father",
+    });
+    expect(real.filter((c) => c.kind === "phantom")).toHaveLength(0);
+  });
+
+  it("a volunteer row is an adult, ranked below guardians and above minors", () => {
+    const candidates = candidatesFor([
+      profile({
+        id: "v1",
+        person_type: "volunteer",
+        first_name: "Dana",
+        last_name: "Whitfield",
+        birthday: null,
+        contact_phone: "5155550300",
+      }),
+      profile({
+        id: "c1",
+        first_name: "Zane",
+        last_name: "Reyes",
+        birthday: MINOR_BIRTHDAY,
+        contact_phone: "5155550101",
+        guardian_first_name: "Holland",
+        guardian_last_name: "Reyes",
+        guardian_relationship: "Father",
+        guardian_phone: "5155550100",
+      }),
+    ]);
+    const real = candidates.filter((c) => c.kind !== "other");
+    expect(real.map((c) => c.name)).toEqual([
+      "Holland Reyes",
+      "Dana Whitfield",
+      "Zane Reyes",
+    ]);
+    expect(real[1]).toMatchObject({ isGuardian: false, relationship: null });
+  });
+
+  it("ties among adults break by input order, so the default is stable across loads", () => {
+    // Two parents split across two children: neither is more "the" volunteer
+    // than the other, so the only guarantee owed is that the same one is
+    // preselected every time. The caller orders profiles by created_at.
+    const rows: CandidateProfile[] = [
+      profile({
+        id: "c1",
+        first_name: "Zane",
+        birthday: MINOR_BIRTHDAY,
+        contact_phone: "5155550101",
+        guardian_first_name: "Holland",
+        guardian_last_name: "Reyes",
+        guardian_relationship: "Father",
+        guardian_phone: "5155550100",
+      }),
+      profile({
+        id: "c2",
+        first_name: "Wren",
+        birthday: MINOR_BIRTHDAY,
+        contact_phone: "5155550103",
+        guardian_first_name: "Priya",
+        guardian_last_name: "Reyes",
+        guardian_relationship: "Mother",
+        guardian_phone: "5155550102",
+      }),
+    ];
+    expect(candidatesFor(rows)[0]).toMatchObject({ name: "Holland Reyes" });
+    // Same rows, opposite input order -> the other parent leads. That is the
+    // point: order in decides order out, and nothing else does.
+    expect(candidatesFor([...rows].reverse())[0]).toMatchObject({ name: "Priya Reyes" });
+    // Repeated calls on the same input never disagree.
+    expect(candidatesFor(rows)).toEqual(candidatesFor(rows));
+  });
+
+  it("still ends with the 'Someone else…' hatch once sorted", () => {
+    const candidates = candidatesFor([
+      profile({ id: "a1", first_name: "Holland", contact_phone: "5155550100" }),
+      profile({ id: "c1", first_name: "Zane", birthday: MINOR_BIRTHDAY, contact_phone: "5155550101" }),
+    ]);
+    expect(candidates[candidates.length - 1]).toEqual({ kind: "other" });
+  });
+});
