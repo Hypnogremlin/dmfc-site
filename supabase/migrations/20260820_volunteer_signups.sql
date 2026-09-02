@@ -1,3 +1,49 @@
+-- =============================================================================
+-- WARNING — APPLIED AND HISTORICAL. DO NOT RE-RUN THIS FILE.
+-- RETRO-SYNCED 2026-09-01 to match live. Syncing it made it honest, not
+-- replayable.
+-- =============================================================================
+-- This file was applied to live on 2026-08-23 (see the STATUS block below).
+-- Until 2026-09-01 the copy in this repo did NOT match what is live, in two
+-- security-relevant ways, and would have re-opened both gaps if replayed:
+--
+--   * Both `volunteer_signups` policies were written here with no `TO` clause
+--     — which in Postgres means PUBLIC, including `anon`. Live has carried
+--     `TO authenticated` on both since the day they were created.
+--   * The three `REVOKE ... FROM PUBLIC` statements do nothing on this
+--     project (default privileges grant EXECUTE directly to anon and
+--     authenticated, not through PUBLIC). Live had `anon` revoked by name.
+--
+-- The corrections now folded in come from:
+--   * 20260823_volunteer_events_restrict_anon.sql — the `TO authenticated`
+--     policy pattern (that file itself only re-created the events /
+--     volunteer_slots policies; see the note below on this table's own).
+--   * 20260823_volunteer_revoke_anon_function_execute.sql (applied 2026-08-23,
+--     same session) — REVOKE EXECUTE ... FROM anon, by name, on all three
+--     functions created here.
+--
+-- Ground truth this sync was written against, read live on 2026-09-01:
+--   pg_policies (volunteer_signups)  -> both policies roles = {authenticated}
+--   pg_proc.proacl (all 3 functions) -> {postgres=X/postgres,
+--                                        authenticated=X/postgres,
+--                                        service_role=X/postgres}
+--   has_function_privilege()         -> anon = false, authenticated = true
+--
+-- NOTE ON THE `TO authenticated` CLAUSES: they were NOT added to live by a
+-- later migration. The text actually applied on 2026-08-23 (remote ledger
+-- version 20260823231015) already contained them — the copy in this repo was
+-- an older draft that was never updated after the file was revised during
+-- that session. That is why 20260823_volunteer_events_restrict_anon.sql does
+-- not mention `volunteer_signups`: there was nothing on this table to fix.
+--
+-- This file is edited even though it is applied, which this folder's
+-- convention normally forbids, because it was actively misleading. NO LIVE
+-- CHANGE WAS INVOLVED — nothing was applied on 2026-09-01. It still must not
+-- be re-run: `claim_volunteer_slot` is about to be replaced again by
+-- 20260831_volunteer_guardian_profile_rpc.sql (pending), and the version
+-- below is deliberately the CURRENT LIVE one, not that pending rewrite.
+-- =============================================================================
+
 -- Volunteer system, M3 — member signup: volunteer_signups, the two RPCs that
 -- are the only way to write to it, and slot_fill_counts(), the only way a
 -- member reads capacity across the whole slot rather than just their own row.
@@ -27,13 +73,17 @@
 -- at function-creation time, independent of PUBLIC. See the corrected
 -- lesson in supabase/migrations/README.md and the follow-up fix,
 -- 20260823_volunteer_revoke_anon_function_execute.sql, applied the same
--- session. The REVOKE ... FROM PUBLIC statements below are left as written
--- (harmless, just insufficient on their own) rather than edited after the
--- fact — this file is already applied to live, and this repo's convention
--- is a new dated file per correction, not an edit to one already run.
+-- session. The REVOKE ... FROM PUBLIC statements below were originally left
+-- as written (harmless, just insufficient on their own) rather than edited
+-- after the fact. As of the 2026-09-01 retro-sync described at the top of
+-- this file, the matching `FROM anon` revokes are shown alongside them, so
+-- this file states what is actually live. That is a documentation fix, not a
+-- new migration: the live change was made by
+-- 20260823_volunteer_revoke_anon_function_execute.sql.
 --
--- Every statement is idempotent (CREATE TABLE/INDEX IF NOT EXISTS, DROP
--- POLICY IF EXISTS before CREATE, CREATE OR REPLACE FUNCTION — except
+-- Every statement here is idempotent in the sense that a second run will not
+-- ERROR (CREATE TABLE/INDEX IF NOT EXISTS, DROP POLICY IF EXISTS before
+-- CREATE, CREATE OR REPLACE FUNCTION — except
 -- cancel_volunteer_signup, which needs one explicit DROP FUNCTION because
 -- CREATE OR REPLACE cannot change a return type; see the comment there).
 -- volunteer_signups is owned outright by this project, so the ordinary
@@ -107,11 +157,13 @@ ALTER TABLE public.volunteer_signups ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "Members read own signups" ON public.volunteer_signups;
 CREATE POLICY "Members read own signups" ON public.volunteer_signups
   FOR SELECT
+  TO authenticated
   USING (account_id = (select auth.uid()));
 
 DROP POLICY IF EXISTS "Coaches and above read all signups" ON public.volunteer_signups;
 CREATE POLICY "Coaches and above read all signups" ON public.volunteer_signups
   FOR SELECT
+  TO authenticated
   USING (public.has_role_at_least('coach'));
 
 -- ── Part 3 — claim_volunteer_slot(): the only INSERT path ────────────────────
@@ -192,8 +244,13 @@ BEGIN
 END;
 $$;
 
-REVOKE ALL ON FUNCTION public.claim_volunteer_slot FROM PUBLIC;
-GRANT EXECUTE ON FUNCTION public.claim_volunteer_slot TO authenticated;
+-- FROM PUBLIC alone is a no-op on this project; `anon` must be named. See
+-- supabase/migrations/README.md, "REVOKE FROM PUBLIC does not work on this
+-- project". The FROM anon line below was applied by
+-- 20260823_volunteer_revoke_anon_function_execute.sql and is folded in here.
+REVOKE ALL     ON FUNCTION public.claim_volunteer_slot(uuid, uuid, text, uuid) FROM PUBLIC;
+REVOKE EXECUTE ON FUNCTION public.claim_volunteer_slot(uuid, uuid, text, uuid) FROM anon;
+GRANT  EXECUTE ON FUNCTION public.claim_volunteer_slot(uuid, uuid, text, uuid) TO authenticated;
 
 -- ── Part 4 — cancel_volunteer_signup(): the only UPDATE path ─────────────────
 -- Not in VOLUNTEERS.md's draft SQL (which only sketched the claim RPC) but
@@ -208,12 +265,12 @@ GRANT EXECUTE ON FUNCTION public.claim_volunteer_slot TO authenticated;
 -- for those cases would look identical to "already cancelled" and hide a
 -- real authorization failure or bad id).
 --
--- CREATE OR REPLACE cannot change a function's return type, so this file
--- would fail to re-run against a database where an earlier void-returning
--- version had already been applied. This migration has never been applied
--- to live (see the file header), so the DROP below is not covering a real
--- past state — it exists so this file stays honestly re-runnable from here
--- forward, per this folder's stated idempotency convention.
+-- CREATE OR REPLACE cannot change a function's return type, hence the
+-- explicit DROP. This paragraph used to read "this migration has never been
+-- applied to live ... so this file stays honestly re-runnable" — that was
+-- true when it was written and is false now: the file WAS applied on
+-- 2026-08-23, and this folder no longer claims any applied file is
+-- re-runnable. Corrected 2026-09-01; see the warning at the top.
 DROP FUNCTION IF EXISTS public.cancel_volunteer_signup(uuid);
 
 CREATE FUNCTION public.cancel_volunteer_signup(p_signup_id uuid)
@@ -256,8 +313,9 @@ $$;
 
 -- DROP FUNCTION discards any grants on the old signature, so this pair must
 -- stay immediately after the CREATE, not merely somewhere in the file.
-REVOKE ALL ON FUNCTION public.cancel_volunteer_signup FROM PUBLIC;
-GRANT EXECUTE ON FUNCTION public.cancel_volunteer_signup TO authenticated;
+REVOKE ALL     ON FUNCTION public.cancel_volunteer_signup(uuid) FROM PUBLIC;
+REVOKE EXECUTE ON FUNCTION public.cancel_volunteer_signup(uuid) FROM anon;
+GRANT  EXECUTE ON FUNCTION public.cancel_volunteer_signup(uuid) TO authenticated;
 
 -- ── Part 5 — slot_fill_counts(): how full is each slot ───────────────────────
 -- A member's own SELECT policy on volunteer_signups (Part 2) is scoped to
@@ -291,5 +349,6 @@ AS $$
   GROUP BY sl.id;
 $$;
 
-REVOKE ALL ON FUNCTION public.slot_fill_counts FROM PUBLIC;
-GRANT EXECUTE ON FUNCTION public.slot_fill_counts TO authenticated;
+REVOKE ALL     ON FUNCTION public.slot_fill_counts(uuid) FROM PUBLIC;
+REVOKE EXECUTE ON FUNCTION public.slot_fill_counts(uuid) FROM anon;
+GRANT  EXECUTE ON FUNCTION public.slot_fill_counts(uuid) TO authenticated;

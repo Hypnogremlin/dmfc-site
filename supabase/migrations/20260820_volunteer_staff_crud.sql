@@ -1,3 +1,38 @@
+-- =============================================================================
+-- WARNING — APPLIED AND HISTORICAL. DO NOT RE-RUN THIS FILE.
+-- =============================================================================
+-- This file was applied to live on 2026-08-20 (see the STATUS block below) and
+-- is kept only as the record of what M2 did on that date. It is NOT a
+-- description of the current live schema. Every policy below is written with
+-- `DROP POLICY IF EXISTS` / `CREATE POLICY`, so re-running this file would
+-- silently undo the fix listed first below and report success. See "Never
+-- re-run an applied file" in supabase/migrations/README.md.
+--
+-- Parts of this file have since been superseded:
+--
+--   * 20260823_volunteer_events_restrict_anon.sql (applied 2026-08-23) —
+--     re-created ALL 9 policies below (5 on events, 4 on volunteer_slots) with
+--     `TO authenticated` added. Every policy in this file was written with no
+--     `TO` clause, which in Postgres means PUBLIC — including `anon`. Live now
+--     shows `roles = {authenticated}` on all 9. **Re-running this file strips
+--     that back off and re-exposes published events and slots to anonymous
+--     /rest/v1 reads.** This is the single most dangerous thing about this
+--     file.
+--   * 20260823_volunteer_revoke_anon_function_execute.sql (applied 2026-08-23)
+--     and the README's "REVOKE FROM PUBLIC does not work on this project"
+--     section — Part 5's `REVOKE ... FROM PUBLIC` pattern does nothing on this
+--     project, because default privileges grant EXECUTE directly to
+--     anon/authenticated rather than through PUBLIC. Every REVOKE must name
+--     the role. Part 5's own comment, which calls the earlier ledger entry
+--     `revoke_trigger_function_rpc` a "silent no-op" and prefers FROM PUBLIC,
+--     has it exactly backwards; that guidance is what caused the M3 gap. Read
+--     the README, not that comment.
+--   * 20260829_roles_and_nonathlete_profiles.sql and
+--     20260830_roles_hardening_followup.sql — continue the role/person_type
+--     work this file's Part 5 touches at the edges (prevent_self_role_change()
+--     has been replaced twice since).
+-- =============================================================================
+
 -- Volunteer system, M2 — staff CRUD: events and volunteer_slots.
 -- Run in Supabase SQL Editor:
 -- https://supabase.com/dashboard/project/gevdecxvpvopvdjjpaum/sql/new
@@ -23,9 +58,11 @@
 -- UPDATE, or DELETE against `profiles`, `account_settings`, or any other
 -- pre-existing table.
 --
--- Every statement is idempotent (IF [NOT] EXISTS, DROP ... IF EXISTS before
--- CREATE), so re-running this file — or the whole migrations folder from
--- scratch — is safe. `events` and `volunteer_slots` are owned outright by
+-- Every statement here is idempotent (IF [NOT] EXISTS, DROP ... IF EXISTS
+-- before CREATE) in the sense that a second run will not ERROR. That is not
+-- the same as safe — see the warning at the top of this file; do not re-run
+-- it, and do not replay this folder from scratch. `events` and
+-- `volunteer_slots` are owned outright by
 -- this project (unlike `auth.users`), so the ordinary DROP/CREATE pattern for
 -- triggers and policies applies here without M1's ownership workaround.
 

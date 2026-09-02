@@ -1,3 +1,44 @@
+-- =============================================================================
+-- WARNING — APPLIED AND HISTORICAL. DO NOT RE-RUN THIS FILE.
+-- =============================================================================
+-- This file was applied to live on 2026-07-29 (see the STATUS block below) and
+-- is kept only as the record of what M1 did on that date. It is NOT a
+-- description of the current live schema, and re-running it would silently
+-- revert later security fixes to the very same objects — `CREATE OR REPLACE
+-- FUNCTION` and `DROP POLICY IF EXISTS` / `CREATE POLICY` overwrite newer
+-- definitions with older ones and report success while doing it. See
+-- "Never re-run an applied file" in supabase/migrations/README.md.
+--
+-- Parts of this file have since been superseded:
+--
+--   * ledger entry `revoke_trigger_function_rpc` (2026-07-29, no file in this
+--     folder) — REVOKEd EXECUTE on handle_new_user_account_settings() and
+--     prevent_self_role_change() from `anon, authenticated` by name. That, not
+--     any FROM PUBLIC statement, is what actually blocks those two.
+--   * 20260820_volunteer_staff_crud.sql (Part 5) — added REVOKE ... FROM
+--     PUBLIC on those same two trigger functions; redundant, and its in-file
+--     comment calling the ledger entry above a "silent no-op" is now known to
+--     be backwards (see the README).
+--   * 20260829_roles_and_nonathlete_profiles.sql — widened Part 7's
+--     profiles_person_type_check to accept 'volunteer', added the
+--     prevent_person_type_change() trigger this file's review deferred, added
+--     account_settings.role_updated_at/role_updated_by, and REPLACED Part 5's
+--     prevent_self_role_change() wholesale.
+--   * 20260830_roles_hardening_followup.sql — replaced
+--     prevent_self_role_change() AGAIN, so it also pins the attribution
+--     columns on any non-role update. This file's version is now two
+--     revisions stale.
+--   * 20260831_volunteer_guardian_profile_rpc.sql (PENDING, not yet applied)
+--     — adds a BEFORE INSERT guard on `profiles`; Part 7's guard is
+--     UPDATE-only.
+--
+-- NOT superseded, so it is worth knowing: Part 6's four `account_settings`
+-- policies are still live exactly as written here, with no `TO` clause
+-- (`roles = {public}` in pg_policies, re-checked 2026-09-01). Each one gates
+-- on auth.uid() or has_role_at_least(), so `anon` still reads nothing; the
+-- 2026-08-23 `TO authenticated` sweep covered only events/volunteer_slots.
+-- =============================================================================
+
 -- Volunteer system, M1 — foundations: the login-scoped role/settings table
 -- and the profiles.person_type split.
 -- Run in Supabase SQL Editor:
@@ -20,9 +61,11 @@
 -- Do not run `supabase db push` — local migrations are not reconciled with
 -- remote history.
 --
--- Every statement is idempotent (IF [NOT] EXISTS, DROP ... IF EXISTS before
--- CREATE, a DO block for the enum), so re-running this file — or the whole
--- migrations folder from scratch — is safe. One exception drives the shape
+-- Every statement here is idempotent (IF [NOT] EXISTS, DROP ... IF EXISTS
+-- before CREATE, a DO block for the enum) in the sense that a second run will
+-- not ERROR. That is not the same as safe — see the warning at the top of this
+-- file; do not re-run it, and do not replay this folder from scratch. One
+-- exception drives the shape
 -- of Part 3: the auth.users trigger there cannot use a DROP ... IF EXISTS /
 -- CREATE pair, because dropping it requires table ownership that the
 -- SQL Editor's connecting role does not have. See the comment in Part 3.
