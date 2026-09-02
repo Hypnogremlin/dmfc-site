@@ -117,9 +117,7 @@ export default async function StaffDirectoryPage({
           <h1 className="mt-4 text-[clamp(32px,5vw,56px)] leading-[1.05]">Member directory</h1>
           <p className="mt-4 text-mute max-w-xl leading-relaxed">
             Contact info, emergency contacts, and class enrollment for every
-            member on the club. Sex at birth, signed waivers, and medical
-            notes are not shown here — medical notes will likely return once
-            we have a secure way to surface them.
+            member on the club.
           </p>
         </div>
         <PrintDirectoryButton />
