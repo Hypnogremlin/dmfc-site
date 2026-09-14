@@ -296,3 +296,97 @@ export function upcomingCutoffIso(): string {
   const p = clubPartsOf(Date.now());
   return new Date(clubWallClockToUtcMs(p.year, p.month, p.day, 0, 0)).toISOString();
 }
+
+// --- Day-aware display ------------------------------------------------------
+//
+// Everything above renders either a date OR a time. These render both, and
+// exist because slots stopped being implicitly "on the event's one day" once
+// SlotEditor grew a "Which day?" picker: a Saturday slot and a Sunday slot
+// formatted with formatClubTimeRange() alone are indistinguishable, which is
+// exactly the bug reported after the MVP shipped. Prefer these on any screen
+// that lists slots or shows an event header.
+
+// The club-local calendar day an instant falls on, as "YYYY-MM-DD". This is
+// the only correct way to ask "are these two timestamps the same day?" here —
+// comparing raw ISO prefixes would put a 7 PM Central shift on the following
+// day, since it stores as 00:00Z or 01:00Z.
+export function clubDayKey(iso: string | null): string | null {
+  if (!iso) return null;
+  const { date } = splitDateTime(iso);
+  return date || null;
+}
+
+// An event's dates as one string. Collapses to a single date when the event
+// starts and ends on the same club-local day (the common case), and to a
+// range otherwise. The year is printed once, at the end, so a range reads as
+// one span rather than two dates that happen to be adjacent.
+export function formatClubDateRange(
+  startsAt: string,
+  endsAt: string | null
+): string {
+  // Guard on `endsAt` itself rather than on the derived day key: the key
+  // being non-null implies the input was too, but that is not something the
+  // type checker can follow through clubDayKey().
+  if (!endsAt) return formatClubDate(startsAt);
+
+  const startDay = clubDayKey(startsAt);
+  const endDay = clubDayKey(endsAt);
+  if (!startDay || !endDay || startDay === endDay) {
+    return formatClubDate(startsAt);
+  }
+
+  const withoutYear: Intl.DateTimeFormatOptions = {
+    weekday: "short",
+    month: "short",
+    day: "numeric",
+    timeZone: CLUB_TIME_ZONE,
+  };
+  const start = new Date(startsAt).toLocaleDateString("en-US", withoutYear);
+  const end = new Date(endsAt).toLocaleDateString("en-US", withoutYear);
+  const year = new Date(endsAt).toLocaleDateString("en-US", {
+    year: "numeric",
+    timeZone: CLUB_TIME_ZONE,
+  });
+  return `${start} – ${end}, ${year}`;
+}
+
+// A slot's full "when": the day it falls on plus its time window, e.g.
+// "Sat, Nov 7 · 9:00 AM – 12:00 PM". The day is shown even on a single-day
+// event (owner decision, 2026-09-13) — the event header's date is easy to
+// scroll past, and a printed roster page pulled off a stack carries no
+// header at all. No year: the parent event's header has it, and every screen
+// using this shows that header directly above.
+//
+// Returns null (not "") when the slot has no start_at, so the caller can drop
+// the element entirely — same contract as formatClubTimeRange, which this
+// wraps.
+export function formatClubSlotWhen(
+  startAt: string | null,
+  endsAt: string | null
+): string | null {
+  const timeRange = formatClubTimeRange(startAt, endsAt);
+  if (!startAt || !timeRange) return timeRange;
+
+  const day = new Date(startAt).toLocaleDateString("en-US", {
+    weekday: "short",
+    month: "short",
+    day: "numeric",
+    timeZone: CLUB_TIME_ZONE,
+  });
+  return `${day} · ${timeRange}`;
+}
+
+// Full-width heading for a day grouping on the roster, e.g.
+// "Saturday, November 7". Takes a club-local "YYYY-MM-DD" key from
+// clubDayKey(), not an instant — so, like formatShortDate(), it builds a
+// local-midnight Date and formats in that same local zone rather than
+// passing CLUB_TIME_ZONE (which would reinterpret a UTC process's midnight
+// as 6 PM the day before).
+export function formatClubDayHeading(dayKey: string): string {
+  const [y, m, d] = dayKey.split("-").map(Number);
+  return new Date(y, m - 1, d).toLocaleDateString("en-US", {
+    weekday: "long",
+    month: "long",
+    day: "numeric",
+  });
+}

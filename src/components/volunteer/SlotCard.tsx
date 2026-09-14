@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { ConfirmButton } from "@/components/ConfirmButton";
 import { AttendeePicker } from "./AttendeePicker";
 import { cancelSignup } from "@/app/member/volunteer/actions";
-import { formatClubTimeRange } from "@/lib/volunteer/datetime";
+import { formatClubSlotWhen } from "@/lib/volunteer/datetime";
 import type { VolunteerSlot } from "@/lib/volunteer/types";
 import type { Candidate } from "@/lib/volunteer/candidates";
 
@@ -29,7 +29,9 @@ export function SlotCard({
   const [isPending, startTransition] = useTransition();
   const [cancelError, setCancelError] = useState<string | null>(null);
   const full = filled >= slot.capacity;
-  const timeRange = formatClubTimeRange(slot.start_at, slot.ends_at);
+  // Day + time, not time alone: a multi-day event's slots are otherwise
+  // indistinguishable, and the event header's date is easy to scroll past.
+  const slotWhen = formatClubSlotWhen(slot.start_at, slot.ends_at);
 
   // Someone already signed up for this slot shouldn't be offered again in
   // the picker — attempting it would just bounce off the DB's unique index.
@@ -68,7 +70,7 @@ export function SlotCard({
       <div className="flex items-start justify-between gap-4 flex-wrap">
         <div>
           <p className="font-semibold text-ink">{slot.role_name}</p>
-          {timeRange && <p className="text-sm text-mute tabular mt-0.5">{timeRange}</p>}
+          {slotWhen && <p className="text-sm text-mute tabular mt-0.5">{slotWhen}</p>}
           {slot.notes && <p className="text-sm text-mute mt-1">{slot.notes}</p>}
         </div>
         <div className="flex items-center gap-2 flex-shrink-0">

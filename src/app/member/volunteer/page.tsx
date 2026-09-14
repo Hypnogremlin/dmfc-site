@@ -7,7 +7,7 @@ import { Eyebrow } from "@/components/Eyebrow";
 import { StripRule } from "@/components/StripRule";
 import { markVolunteerSeen } from "./actions";
 import {
-  formatClubDate as formatDate,
+  formatClubDateRange as formatDateRange,
   formatClubDayNumber as formatDayNumber,
   formatClubMonthShort as formatMonthShort,
   upcomingCutoffIso,
@@ -19,7 +19,7 @@ export const metadata: Metadata = {
   description: "Upcoming volunteer requests at Des Moines Fencing Club.",
 };
 
-type EventRow = Pick<VolunteerEvent, "id" | "title" | "starts_at" | "location">;
+type EventRow = Pick<VolunteerEvent, "id" | "title" | "starts_at" | "ends_at" | "location">;
 
 export default async function VolunteerListPage() {
   const supabase = await createSessionClient();
@@ -34,7 +34,7 @@ export default async function VolunteerListPage() {
 
   const { data: events, error } = await supabase
     .from("events")
-    .select("id, title, starts_at, location")
+    .select("id, title, starts_at, ends_at, location")
     .eq("published", true)
     .gte("starts_at", upcomingCutoffIso())
     .order("starts_at", { ascending: true })
@@ -86,7 +86,7 @@ export default async function VolunteerListPage() {
                     {event.title}
                   </p>
                   <p className="text-sm text-mute mt-0.5 tabular">
-                    {formatDate(event.starts_at)}
+                    {formatDateRange(event.starts_at, event.ends_at)}
                     {event.location ? ` · ${event.location}` : ""}
                   </p>
                 </div>
