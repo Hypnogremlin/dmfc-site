@@ -7,7 +7,7 @@ import { StripRule } from "@/components/StripRule";
 import { SlotCard } from "@/components/volunteer/SlotCard";
 import { candidatesFor, type CandidateProfile } from "@/lib/volunteer/candidates";
 import {
-  formatClubDate as formatDate,
+  formatClubDateRange as formatDateRange,
   formatClubDayNumber as formatDayNumber,
   formatClubMonthShort as formatMonthShort,
 } from "@/lib/volunteer/datetime";
@@ -155,7 +155,7 @@ export default async function VolunteerEventPage({
           <Eyebrow>Volunteer</Eyebrow>
           <h1 className="mt-4 text-[clamp(32px,5vw,56px)] leading-[1.05]">{event.title}</h1>
           <p className="text-mute mt-2 tabular">
-            {formatDate(event.starts_at)}
+            {formatDateRange(event.starts_at, event.ends_at)}
             {event.location ? ` · ${event.location}` : ""}
           </p>
           {event.description && <p className="text-ink mt-4 max-w-2xl">{event.description}</p>}

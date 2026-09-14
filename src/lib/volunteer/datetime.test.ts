@@ -3,8 +3,12 @@ import {
   combineDateTime,
   datesInRange,
   effectiveSlotDate,
+  clubDayKey,
   formatClubDate,
+  formatClubDateRange,
   formatClubDateTime,
+  formatClubDayHeading,
+  formatClubSlotWhen,
   formatClubTimeRange,
   splitDateTime,
   upcomingCutoffIso,
@@ -248,5 +252,73 @@ describe("effectiveSlotDate", () => {
 
   it("passes the coach's pick through for a multi-day event", () => {
     expect(effectiveSlotDate("2026-11-07", "2026-11-06", "2026-11-08")).toBe("2026-11-07");
+  });
+});
+
+describe("clubDayKey", () => {
+  it("reads the Chicago calendar day, not the UTC one", () => {
+    // 7 PM Central on Nov 7 stores as 01:00Z on Nov 8. An ISO-prefix
+    // comparison would call this the 8th; the club calls it the 7th.
+    expect(clubDayKey("2026-11-08T01:00:00.000Z")).toBe("2026-11-07");
+  });
+
+  it("returns null for a missing timestamp", () => {
+    expect(clubDayKey(null)).toBeNull();
+  });
+});
+
+describe("formatClubDateRange", () => {
+  it("collapses to one date when the event starts and ends the same day", () => {
+    // 9 AM to 5 PM CST on Jan 6 — a range in raw instants, one day here.
+    expect(
+      formatClubDateRange("2026-01-06T15:00:00.000Z", "2026-01-06T23:00:00.000Z")
+    ).toBe("Tue, Jan 6, 2026");
+  });
+
+  it("collapses when the end crosses UTC midnight but not the club's", () => {
+    // 8 PM Central on the 6th is 02:00Z on the 7th — still one club day.
+    expect(
+      formatClubDateRange("2026-01-06T15:00:00.000Z", "2026-01-07T02:00:00.000Z")
+    ).toBe("Tue, Jan 6, 2026");
+  });
+
+  it("renders a real multi-day span with the year printed once", () => {
+    expect(
+      formatClubDateRange("2026-11-06T22:00:00.000Z", "2026-11-09T00:00:00.000Z")
+    ).toBe("Fri, Nov 6 – Sun, Nov 8, 2026");
+  });
+
+  it("falls back to the start date when there is no end", () => {
+    expect(formatClubDateRange("2026-11-06T22:00:00.000Z", null)).toBe("Fri, Nov 6, 2026");
+  });
+});
+
+describe("formatClubSlotWhen", () => {
+  it("prefixes the slot's club-local day to its time window", () => {
+    // 14:00Z / 18:00Z on Nov 7 is 8 AM – 12 PM CST, a Saturday.
+    expect(
+      formatClubSlotWhen("2026-11-07T14:00:00.000Z", "2026-11-07T18:00:00.000Z")
+    ).toBe("Sat, Nov 7 · 8:00 AM – 12:00 PM");
+  });
+
+  it("uses the club day, not the UTC day, for an evening shift", () => {
+    // 6–9 PM Central on Saturday the 7th, stored on Sunday the 8th in UTC.
+    expect(
+      formatClubSlotWhen("2026-11-08T00:00:00.000Z", "2026-11-08T03:00:00.000Z")
+    ).toBe("Sat, Nov 7 · 6:00 PM – 9:00 PM");
+  });
+
+  it("shows the day with an open-ended start", () => {
+    expect(formatClubSlotWhen("2026-11-07T14:00:00.000Z", null)).toBe("Sat, Nov 7 · 8:00 AM");
+  });
+
+  it("returns null when the slot has no start, so the caller can drop it", () => {
+    expect(formatClubSlotWhen(null, "2026-11-07T18:00:00.000Z")).toBeNull();
+  });
+});
+
+describe("formatClubDayHeading", () => {
+  it("spells out a calendar-day key", () => {
+    expect(formatClubDayHeading("2026-11-07")).toBe("Saturday, November 7");
   });
 });
