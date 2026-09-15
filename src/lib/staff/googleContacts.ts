@@ -5,6 +5,23 @@
 // (src/app/api/staff/contacts-export/route.ts) owns the fetch and the auth
 // gates; everything here is data shaping.
 //
+// ── The unit of export is an ADULT, not a profile row ───────────────────────
+//
+// This list exists to email people. A minor fences but does not read email:
+// `profiles.contact_email` on a child's row is, in practice, their parent's
+// address. Emitting a row per profile therefore produced two contacts sharing
+// one address (the child and the parent), which is both useless to mail and
+// exactly the shape Google's "Merge & fix" tries to collapse.
+//
+// So children are not exported at all. Each household contributes one contact
+// per *adult*: adult athletes, guardians, and volunteers. An adult who is
+// several of those at once — someone who fences AND is the parent on file —
+// is ONE contact carrying all of it, not one row per role.
+//
+// A minor's weapon still reaches the export, as a label on their guardian's
+// contact, so "email everyone in youth foil" reaches the parents who actually
+// read it. That is the whole point of putting weapons on guardian rows.
+//
 // ── Format notes, all load-bearing ──────────────────────────────────────────
 //
 // * The `Labels` cell is multi-valued, and its delimiter is " ::: " — space,
@@ -20,28 +37,32 @@
 //   the relation columns widen to fit the largest household.
 //
 // * `Relation` is a first-class field: Google renders it as a "Related
-//   people" section on the contact card. That's why the guardian/fencer link
-//   lives there rather than in a Custom Field, which would render as a flat
-//   row of text. Custom Field 1 is spent on the weapon instead.
+//   people" section on the contact card. Children appear there, by name, on
+//   their parent's contact — so a coach can still see who a parent belongs to
+//   even though the child has no contact of their own.
 import {
   MEMBERSHIP_SEASON,
   WEAPON_LABELS,
   type PersonType,
   type WeaponClass,
 } from "@/lib/member-types";
+import { isMinor } from "@/lib/age";
 import { buildCsv, type CsvColumn } from "@/lib/csv";
 
 // Exactly the columns selected in the route handler. Hand-typed: this repo
 // has no generated Supabase types (see the same note in
-// src/app/member/staff/directory/page.tsx). Deliberately carries no birthday,
-// sex_at_birth, gender_identity, USAF/citizenship, waiver, or medical field —
-// see the route's `select` for why that list is the security boundary.
+// src/app/member/staff/directory/page.tsx).
+//
+// `birthday` is read but NEVER exported — it is here solely to answer "is
+// this athlete an adult", which decides whether they get a contact at all.
+// See the Birthday column at the bottom of this file, which is always blank.
 export type ContactExportRow = {
   id: string;
   account_owner_id: string;
   person_type: PersonType;
   first_name: string;
   last_name: string;
+  birthday: string | null;
   weapon_classes: WeaponClass[];
   membership_season: string | null;
   enrollment_complete: boolean;
@@ -82,23 +103,6 @@ function fullName(first: string, last: string): string {
 }
 
 /**
- * Identity key for an adult *within one household*.
- *
- * Name-only, normalized. Globally that would be far too loose, but the
- * database already treats name-within-account as a guardian's identity —
- * `profiles_one_guardian_identity_per_account_idx` is UNIQUE on
- * (account_owner_id, lower(btrim(first_name)), lower(btrim(last_name)))
- * WHERE person_type = 'guardian'. Matching that exactly is what lets a real
- * guardian row absorb the phantom guardian_* text on their children's rows
- * even when the two carry different phone numbers, which is the common case
- * after somebody changes their number and only one record gets updated.
- */
-function householdKey(first: string, last: string): string {
-  const norm = (s: string) => s.trim().toLowerCase().replace(/[^a-z0-9]/g, "");
-  return `${norm(first)}|${norm(last)}`;
-}
-
-/**
  * A fencer who is actually on the club right now: current season AND
  * enrollment finished. Both conditions are athlete-only — `person_type`
  * 'guardian'/'volunteer' rows never carry a season and never flip
@@ -113,10 +117,28 @@ function isCurrentAthlete(row: ContactExportRow): boolean {
   );
 }
 
+/**
+ * Identity key for an adult *within one household*.
+ *
+ * Name-only, normalized. Globally that would be far too loose, but the
+ * database already treats name-within-account as a guardian's identity —
+ * `profiles_one_guardian_identity_per_account_idx` is UNIQUE on
+ * (account_owner_id, lower(btrim(first_name)), lower(btrim(last_name)))
+ * WHERE person_type = 'guardian'. Matching that exactly is what lets one
+ * adult absorb every role they hold: a real guardian row, the guardian_* text
+ * on each of their children's rows, and their own athlete row if they fence.
+ * Keying on name+phone the way candidates.ts does would split that person
+ * back apart whenever a phone number was updated on only some of the records.
+ */
+function householdKey(first: string, last: string): string {
+  const norm = (s: string) => s.trim().toLowerCase().replace(/[^a-z0-9]/g, "");
+  return `${norm(first)}|${norm(last)}`;
+}
+
 type Relation = { label: string; value: string };
 
-// One output row, before it is flattened into CSV columns.
-type Contact = {
+// One adult, accumulated across every role they hold in their household.
+type AdultDraft = {
   firstName: string;
   lastName: string;
   emails: string[];
@@ -125,10 +147,28 @@ type Contact = {
   city: string;
   region: string;
   postalCode: string;
+  /** This person's OWN weapons — only ever set when they themselves fence. */
   weapons: WeaponClass[];
-  relations: Relation[];
-  labels: string[];
-  notes: string;
+  /** Fencers this person is the guardian of. */
+  children: ContactExportRow[];
+  /**
+   * Numbers recorded against this person on their children's rows, in child
+   * order. Kept apart from `phones` so the composition rule in step 3d can be
+   * applied once, rather than depending on the order roles happened to be
+   * folded in.
+   */
+  guardianPhones: string[];
+  /** The household's own word: "Father", "Grandmother". */
+  relationship: string | null;
+  isGuardian: boolean;
+  isAthlete: boolean;
+  isVolunteer: boolean;
+  /**
+   * True once this adult has been seen as a real `profiles` row. Decides
+   * whose phone number leads: their own `contact_phone` when they have a
+   * record, otherwise the `guardian_phone` recorded against their children.
+   */
+  hasProfileRow: boolean;
 };
 
 function streetOf(row: ContactExportRow): string {
@@ -144,11 +184,32 @@ function unique<T>(values: T[]): T[] {
   return [...new Set(values)];
 }
 
+function draftFrom(row: ContactExportRow): AdultDraft {
+  return {
+    firstName: row.first_name,
+    lastName: row.last_name,
+    emails: [row.contact_email].filter(Boolean),
+    phones: [row.contact_phone].filter(Boolean),
+    street: streetOf(row),
+    city: row.city ?? "",
+    region: row.state ?? "",
+    postalCode: row.zip_code ?? "",
+    weapons: [],
+    children: [],
+    guardianPhones: [],
+    relationship: null,
+    isGuardian: false,
+    isAthlete: false,
+    isVolunteer: false,
+    hasProfileRow: false,
+  };
+}
+
 /**
  * @param rows   Every profile row for the club, unfiltered. Scoping to the
  *               current season happens here, not in the query.
  * @param accountEmails  account_owner_id → the login email on auth.users.
- *               Used only to add a second address when a guardian's own
+ *               Used only to add a second address when an adult's own
  *               contact_email differs from the address the household signs in
  *               with. Pass an empty Map to skip that entirely.
  */
@@ -186,172 +247,104 @@ export function buildGoogleContactsCsv(
     else households.set(row.account_owner_id, [row]);
   }
 
-  const contacts: Contact[] = [];
+  const contacts: AdultDraft[] = [];
 
   for (const [ownerId, members] of households) {
     const athletes = members.filter((m) => m.person_type === "athlete");
     const accountEmail = accountEmails.get(ownerId) ?? null;
 
-    // ── 3. Resolve one guardian identity per adult in this household ────────
-    // Real `guardian` profile rows come first so they win any collision; the
-    // phantom guardian_* columns on each child's row are then folded into a
-    // matching adult, or materialized as their own contact when no real row
-    // exists for that name.
-    type GuardianDraft = {
-      firstName: string;
-      lastName: string;
-      emails: string[];
-      phones: string[];
-      street: string;
-      city: string;
-      region: string;
-      postalCode: string;
-      children: ContactExportRow[];
-      relationship: string | null;
-    };
-    const guardians = new Map<string, GuardianDraft>();
+    // One entry per adult identity in this household, keyed by name. Every
+    // role that person holds folds into the same entry.
+    const adults = new Map<string, AdultDraft>();
 
-    for (const g of members.filter((m) => m.person_type === "guardian")) {
-      guardians.set(householdKey(g.first_name, g.last_name), {
-        firstName: g.first_name,
-        lastName: g.last_name,
-        emails: [g.contact_email],
-        phones: [g.contact_phone],
-        street: streetOf(g),
-        city: g.city ?? "",
-        region: g.state ?? "",
-        postalCode: g.zip_code ?? "",
-        children: [],
-        relationship: g.guardian_relationship,
-      });
+    const upsert = (first: string, last: string, seed: ContactExportRow) => {
+      const key = householdKey(first, last);
+      let draft = adults.get(key);
+      if (!draft) {
+        draft = draftFrom(seed);
+        draft.firstName = first;
+        draft.lastName = last;
+        adults.set(key, draft);
+      }
+      return draft;
+    };
+
+    // 3a. Real profile rows that are themselves adults.
+    for (const m of members) {
+      if (m.person_type === "athlete" && isMinor(m.birthday)) continue;
+
+      const draft = upsert(m.first_name, m.last_name, m);
+      // A real row is the best source of contact details, so its own email,
+      // phone and address take precedence over anything folded in later.
+      draft.hasProfileRow = true;
+      draft.emails.unshift(m.contact_email);
+      draft.phones.unshift(m.contact_phone);
+      if (streetOf(m)) {
+        draft.street = streetOf(m);
+        draft.city = m.city ?? "";
+        draft.region = m.state ?? "";
+        draft.postalCode = m.zip_code ?? "";
+      }
+      if (m.person_type === "athlete") {
+        draft.isAthlete = true;
+        draft.weapons.push(...m.weapon_classes);
+      }
+      if (m.person_type === "guardian") {
+        draft.isGuardian = true;
+        draft.relationship = draft.relationship ?? m.guardian_relationship;
+      }
+      if (m.person_type === "volunteer") draft.isVolunteer = true;
     }
 
+    // 3b. Guardians named on a child's row. When that name already belongs to
+    // an adult above — a parent who also fences, or who has a real guardian
+    // row — this merges into them rather than creating a second contact.
     for (const child of athletes) {
       if (!child.guardian_first_name) continue;
-      const first = child.guardian_first_name;
-      const last = child.guardian_last_name ?? "";
-      const key = householdKey(first, last);
-
-      let draft = guardians.get(key);
-      if (!draft) {
-        // A phantom guardian: named on the child's row but with no profile of
-        // their own. profiles has no guardian_email column at all, so the
-        // child's contact_email is the only address available — which in
-        // practice IS the parent's, since a minor enrolls under one.
-        draft = {
-          firstName: first,
-          lastName: last,
-          emails: [child.contact_email],
-          phones: child.guardian_phone ? [child.guardian_phone] : [],
-          street: streetOf(child),
-          city: child.city ?? "",
-          region: child.state ?? "",
-          postalCode: child.zip_code ?? "",
-          children: [],
-          relationship: child.guardian_relationship,
-        };
-        guardians.set(key, draft);
-      }
+      const draft = upsert(
+        child.guardian_first_name,
+        child.guardian_last_name ?? "",
+        // profiles has no guardian_email column at all, so when this parent
+        // has no record of their own, the child's contact_email is the only
+        // address available — which in practice IS the parent's, since a
+        // minor enrolls under one.
+        child
+      );
+      draft.isGuardian = true;
       draft.children.push(child);
       draft.relationship = draft.relationship ?? child.guardian_relationship;
-      if (child.guardian_phone) draft.phones.push(child.guardian_phone);
+      if (child.guardian_phone) draft.guardianPhones.push(child.guardian_phone);
     }
 
-    // ── 4. Emit the guardians ───────────────────────────────────────────────
-    for (const draft of guardians.values()) {
-      // A household that signed up under one address will have the login
-      // email already present; only a genuinely different one is added.
-      const emails = unique([
-        ...draft.emails,
-        ...(accountEmail ? [accountEmail] : []),
-      ]).filter(Boolean);
-
-      const childWeapons = draft.children.flatMap((c) => c.weapon_classes);
-
-      contacts.push({
-        firstName: draft.firstName,
-        lastName: draft.lastName,
-        emails,
-        phones: unique(draft.phones).filter(Boolean),
-        street: draft.street,
-        city: draft.city,
-        region: draft.region,
-        postalCode: draft.postalCode,
-        weapons: [],
-        // Their fencers, so the coach can see who a parent belongs to
-        // without cross-referencing. Label defaults to "Child" when the
-        // household never recorded a relationship word.
-        relations: draft.children.map((c) => ({
-          label: "Child",
-          value: fullName(c.first_name, c.last_name),
-        })),
-        labels: unique([
-          LABEL_ALL,
-          LABEL_GUARDIANS,
-          ...childWeapons.map(weaponGroupLabel),
-        ]),
-        notes: draft.children.length
-          ? `DMFC guardian of ${draft.children
-              .map((c) => fullName(c.first_name, c.last_name))
-              .join(", ")}.`
-          : "DMFC guardian.",
-      });
+    // 3c. Fallback: a minor with nobody on record to email. Dropping them
+    // would make the household unreachable, which is worse than the
+    // duplicate-email problem this whole restructure exists to fix — so the
+    // child's own record stands in, since its contact_email is the address
+    // the club actually has for them.
+    for (const child of athletes) {
+      if (!isMinor(child.birthday)) continue;
+      if (child.guardian_first_name) continue;
+      const draft = upsert(child.first_name, child.last_name, child);
+      draft.isAthlete = true;
+      draft.weapons.push(...child.weapon_classes);
     }
 
-    // ── 5. Emit the athletes ────────────────────────────────────────────────
-    for (const athlete of athletes) {
-      // Which adult is this fencer's parent, by the same household key used
-      // above — so the Parent relation names whoever actually got emitted.
-      const guardianDraft = athlete.guardian_first_name
-        ? guardians.get(
-            householdKey(athlete.guardian_first_name, athlete.guardian_last_name ?? "")
-          )
-        : undefined;
-
-      contacts.push({
-        firstName: athlete.first_name,
-        lastName: athlete.last_name,
-        emails: [athlete.contact_email].filter(Boolean),
-        phones: [athlete.contact_phone].filter(Boolean),
-        street: streetOf(athlete),
-        city: athlete.city ?? "",
-        region: athlete.state ?? "",
-        postalCode: athlete.zip_code ?? "",
-        weapons: athlete.weapon_classes,
-        relations: guardianDraft
-          ? [
-              {
-                // The household's own word — "Father", "Grandmother" — when
-                // they gave one. Google accepts free text here.
-                label: guardianDraft.relationship || "Parent",
-                value: fullName(guardianDraft.firstName, guardianDraft.lastName),
-              },
-            ]
-          : [],
-        labels: unique([
-          LABEL_ALL,
-          ...athlete.weapon_classes.map(weaponGroupLabel),
-        ]),
-        notes: `DMFC fencer, ${MEMBERSHIP_SEASON} season.`,
-      });
-    }
-
-    // ── 6. Emit volunteers ──────────────────────────────────────────────────
-    for (const v of members.filter((m) => m.person_type === "volunteer")) {
-      contacts.push({
-        firstName: v.first_name,
-        lastName: v.last_name,
-        emails: [v.contact_email].filter(Boolean),
-        phones: [v.contact_phone].filter(Boolean),
-        street: streetOf(v),
-        city: v.city ?? "",
-        region: v.state ?? "",
-        postalCode: v.zip_code ?? "",
-        weapons: [],
-        relations: [],
-        labels: [LABEL_ALL, LABEL_VOLUNTEERS],
-        notes: "DMFC volunteer.",
-      });
+    // 3d. Attach the login email where it differs, and tidy.
+    for (const draft of adults.values()) {
+      if (accountEmail) draft.emails.push(accountEmail);
+      draft.emails = unique(draft.emails).filter(Boolean);
+      // Whose number leads: an adult with a record of their own is best
+      // described by their own contact_phone. An adult who exists only as
+      // guardian_* text has no contact_phone — the seed phone on their draft
+      // belongs to their child's record — so the number explicitly recorded
+      // against them wins, earliest child first.
+      draft.phones = unique(
+        draft.hasProfileRow
+          ? [...draft.phones, ...draft.guardianPhones]
+          : [...draft.guardianPhones, ...draft.phones]
+      ).filter(Boolean);
+      draft.weapons = unique(draft.weapons);
+      contacts.push(draft);
     }
   }
 
@@ -360,16 +353,61 @@ export function buildGoogleContactsCsv(
       a.lastName.localeCompare(b.lastName) || a.firstName.localeCompare(b.firstName)
   );
 
-  // ── 7. Flatten to columns ─────────────────────────────────────────────────
+  // ── 4. Derive the label set and relations for each contact ────────────────
+  const labelsFor = (d: AdultDraft): string[] => {
+    const childWeapons = d.children.flatMap((c) => c.weapon_classes);
+    return unique([
+      LABEL_ALL,
+      ...d.weapons.map(weaponGroupLabel),
+      ...(d.isGuardian ? [LABEL_GUARDIANS] : []),
+      // A guardian carries their fencers' weapons so that emailing a weapon
+      // group reaches the parent who actually reads mail.
+      ...childWeapons.map(weaponGroupLabel),
+      ...(d.isVolunteer ? [LABEL_VOLUNTEERS] : []),
+    ]);
+  };
+
+  const relationsFor = (d: AdultDraft): Relation[] =>
+    d.children.map((c) => ({
+      label: "Child",
+      value: fullName(c.first_name, c.last_name),
+    }));
+
+  const notesFor = (d: AdultDraft): string => {
+    const parts: string[] = [];
+    if (d.isAthlete) {
+      parts.push(
+        `DMFC fencer (${d.weapons.map(weaponLabel).join(" / ") || "no weapon on file"}), ${MEMBERSHIP_SEASON} season.`
+      );
+    }
+    if (d.children.length) {
+      // Name each fencer with their weapon — this is the only place a coach
+      // can see which child a parent belongs to and what they fence, now that
+      // children have no contacts of their own.
+      const kids = d.children
+        .map((c) => {
+          const w = c.weapon_classes.map(weaponLabel).join(" / ");
+          return w
+            ? `${fullName(c.first_name, c.last_name)} (${w})`
+            : fullName(c.first_name, c.last_name);
+        })
+        .join(", ");
+      parts.push(`DMFC guardian of ${kids}.`);
+    }
+    if (d.isVolunteer) parts.push("DMFC volunteer.");
+    return parts.join(" ");
+  };
+
+  // ── 5. Flatten to columns ─────────────────────────────────────────────────
   // Header order follows Google's downloadable template, with the extra
   // numbered columns slotted in beside their "1" counterparts. Order is
   // cosmetic to the importer (it matches on header text) but makes the file
   // readable when a coach opens it in Sheets before importing.
   const maxEmails = Math.max(1, ...contacts.map((c) => c.emails.length));
   const maxPhones = Math.max(1, ...contacts.map((c) => c.phones.length));
-  const maxRelations = Math.max(0, ...contacts.map((c) => c.relations.length));
+  const maxRelations = Math.max(0, ...contacts.map((c) => relationsFor(c).length));
 
-  const columns: CsvColumn<Contact>[] = [
+  const columns: CsvColumn<AdultDraft>[] = [
     ["Name Prefix", () => ""],
     ["First Name", (c) => c.firstName],
     ["Middle Name", () => ""],
@@ -399,25 +437,29 @@ export function buildGoogleContactsCsv(
     ["Organization Name", () => ORGANIZATION],
     ["Organization Title", () => ""],
     ["Organization Department", () => ""],
-    // Present so the header matches the template, always empty: a member's
-    // date of birth is not exported. See the route's select list.
+    // Present so the header matches Google's template, always empty. Birthday
+    // is read from the database to decide who counts as an adult, and is
+    // deliberately never written out.
     ["Birthday", () => ""]
   );
 
   for (let i = 0; i < maxRelations; i++) {
-    columns.push([`Relation ${i + 1} - Label`, (c) => c.relations[i]?.label ?? ""]);
-    columns.push([`Relation ${i + 1} - Value`, (c) => c.relations[i]?.value ?? ""]);
+    columns.push([
+      `Relation ${i + 1} - Label`,
+      (c) => relationsFor(c)[i]?.label ?? "",
+    ]);
+    columns.push([
+      `Relation ${i + 1} - Value`,
+      (c) => relationsFor(c)[i]?.value ?? "",
+    ]);
   }
 
   columns.push(
     ["Custom Field 1 - Label", (c) => (c.weapons.length ? "Weapon" : "")],
-    [
-      "Custom Field 1 - Value",
-      (c) => c.weapons.map(weaponLabel).join(" / "),
-    ],
-    ["Notes", (c) => c.notes],
+    ["Custom Field 1 - Value", (c) => c.weapons.map(weaponLabel).join(" / ")],
+    ["Notes", (c) => notesFor(c)],
     // " ::: ", not ",". See the header comment.
-    ["Labels", (c) => c.labels.join(LABEL_DELIMITER)]
+    ["Labels", (c) => labelsFor(c).join(LABEL_DELIMITER)]
   );
 
   return buildCsv(columns, contacts);

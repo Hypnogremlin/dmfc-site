@@ -16,11 +16,16 @@
 //      data is read. Do not collapse them into one.
 //   2. Column scope. The `select` list IS the allowlist — there is no
 //      RETURNS TABLE or policy behind it narrowing what can escape. Never
-//      change it to select("*"). Birthday, sex_at_birth, gender_identity,
+//      change it to select("*"). sex_at_birth, gender_identity,
 //      usa_fencing_number, citizenship/representing country, member_waivers
 //      and member_medical are all deliberately absent; medical in particular
 //      was removed from the staff directory on purpose in
 //      20260901_staff_directory_remove_medical.sql.
+//
+//      `birthday` is the one sensitive column read here, and it is NOT
+//      exported: it exists only to answer "is this athlete an adult", which
+//      decides who gets a contact at all. The CSV's Birthday column is always
+//      blank — see the column list in src/lib/staff/googleContacts.ts.
 import { createSessionClient } from "@/lib/supabase-server";
 import { createServiceClient } from "@/lib/supabase";
 import { hasRoleAtLeast, roleAtLeast, type AccountRole } from "@/lib/roles";
@@ -77,7 +82,7 @@ export async function GET() {
   const { data: rows, error } = await admin
     .from("profiles")
     .select(
-      "id, account_owner_id, person_type, first_name, last_name, weapon_classes, " +
+      "id, account_owner_id, person_type, first_name, last_name, birthday, weapon_classes, " +
         "membership_season, enrollment_complete, contact_email, contact_phone, " +
         "address_line1, address_line2, city, state, zip_code, " +
         "guardian_first_name, guardian_last_name, guardian_relationship, guardian_phone"
