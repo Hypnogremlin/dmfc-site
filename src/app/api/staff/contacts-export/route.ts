@@ -33,6 +33,7 @@ import {
   buildGoogleContactsCsv,
   type ContactExportRow,
 } from "@/lib/staff/googleContacts";
+import { MEMBERSHIP_SEASON } from "@/lib/member-types";
 
 // PII, freshly assembled per request — never cache it anywhere.
 export const dynamic = "force-dynamic";
@@ -111,10 +112,35 @@ export async function GET() {
 
   // Double assertion, same as usafReport.ts: with no generated database types
   // in this repo, the client infers the select string as GenericStringError[].
-  const csv = buildGoogleContactsCsv(
+  const { csv, contactCount } = buildGoogleContactsCsv(
     (rows ?? []) as unknown as ContactExportRow[],
     accountEmails
   );
+
+  // ── Audit ─────────────────────────────────────────────────────────────────
+  // Record the export BEFORE serving the file, and treat a failure as fatal.
+  // This is the highest-PII action in the app; an audit trail that can be
+  // skipped by waiting for a transient database error is not an audit trail.
+  // The cost of failing closed is a coach retrying a download — cheap against
+  // an unattributable copy of every family's home address.
+  //
+  // exported_by_email is stored alongside the FK deliberately: the FK is
+  // ON DELETE SET NULL, so after an account is removed the email is the only
+  // column that still answers "who". See the migration.
+  const { error: auditError } = await admin.from("contact_exports").insert({
+    exported_by: user.id,
+    exported_by_email: user.email ?? "(unknown)",
+    contact_count: contactCount,
+    membership_season: MEMBERSHIP_SEASON,
+  });
+
+  if (auditError) {
+    console.error("[contacts-export] audit insert failed:", auditError);
+    return new Response(
+      "Could not record this export, so the download was cancelled. Please try again.",
+      { status: 500 }
+    );
+  }
 
   const today = new Date().toISOString().slice(0, 10); // YYYY-MM-DD (UTC)
 

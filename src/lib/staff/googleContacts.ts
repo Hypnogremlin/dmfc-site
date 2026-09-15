@@ -216,7 +216,7 @@ function draftFrom(row: ContactExportRow): AdultDraft {
 export function buildGoogleContactsCsv(
   rows: ContactExportRow[],
   accountEmails: Map<string, string>
-): string {
+): { csv: string; contactCount: number } {
   // ── 1. Scope ──────────────────────────────────────────────────────────────
   // Current-season, fully-enrolled athletes define which households are in
   // the export: this list is for people actually involved in the club, so a
@@ -462,5 +462,9 @@ export function buildGoogleContactsCsv(
     ["Labels", (c) => labelsFor(c).join(LABEL_DELIMITER)]
   );
 
-  return buildCsv(columns, contacts);
+  // The count is returned rather than derived from the CSV text by the
+  // caller: a quoted cell may legally contain a newline, so counting lines is
+  // only accidentally correct today and would quietly start over-reporting
+  // the moment a field gained one. The audit row records this number.
+  return { csv: buildCsv(columns, contacts), contactCount: contacts.length };
 }
