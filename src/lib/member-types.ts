@@ -1,4 +1,19 @@
 export type WeaponClass = "foil-youth" | "foil-adult" | "epee" | "saber";
+
+// Canonical slug → human label for weapon classes. Import this rather than
+// re-declaring the map; it had drifted into three separate copies before it
+// had a home here.
+//
+// One copy is deliberately NOT collapsed into this: src/lib/cron/usafReport.ts
+// spells epee "Épée" in the USA Fencing report's email body. That's a
+// different audience with a different house style, not drift, so it keeps its
+// own literal.
+export const WEAPON_LABELS: Record<WeaponClass, string> = {
+  "foil-youth": "Foil (Youth)",
+  "foil-adult": "Foil (Adult)",
+  epee: "Epee",
+  saber: "Saber",
+};
 export type SexAtBirth = "male" | "female";
 export type ShirtSize = "YXS" | "YS" | "YM" | "YL" | "YXL" | "XS" | "S" | "M" | "L" | "XL" | "XXL" | "XXXL";
 export type SignerType = "athlete" | "guardian";

@@ -20,6 +20,22 @@ function roleRank(role: AccountRole): number {
 }
 
 /**
+ * Pure comparison over the member < coach < board < admin cascade, for a role
+ * the caller has already fetched itself.
+ *
+ * Unlike `hasRoleAtLeast` below, this reads nothing — it cannot fail, and so
+ * it cannot fail closed. It exists for the one caller that deliberately
+ * re-reads `account_settings` through a different client than the session
+ * path (the contacts export's second gate, src/app/api/staff/contacts-export)
+ * and needs to evaluate that independently-fetched role. Everywhere else,
+ * reach for `hasRoleAtLeast`/`assertRole` instead: they own the fetch, and
+ * their fail-closed behaviour is the point.
+ */
+export function roleAtLeast(role: AccountRole, minRole: AccountRole): boolean {
+  return roleRank(role) >= roleRank(minRole);
+}
+
+/**
  * Reads the signed-in account's role from `account_settings`.
  *
  * Failure mode, chosen deliberately: this throws — it never falls back to
