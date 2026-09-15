@@ -1,6 +1,7 @@
 import { createServiceClient } from "@/lib/supabase";
 import { Resend } from "resend";
 import { MEMBERSHIP_SEASON, type WeaponClass } from "@/lib/member-types";
+import { buildCsv, type CsvColumn } from "@/lib/csv";
 
 // Weapon slug → human label for the email body's fencer list. Mirrors
 // WEAPON_LABELS in src/emails/MembershipConfirmation.tsx — kept as a
@@ -65,7 +66,7 @@ const GENDER_CODE: Record<"male" | "female", string> = {
 
 // CSV columns in the exact order/headers of USA Fencing's Bulk Uploader
 // template. Row 1 headers must match the downloaded template byte-for-byte.
-const COLUMNS: [string, (m: MemberRow) => string][] = [
+const COLUMNS: CsvColumn<MemberRow>[] = [
   ["Membership#", (m) => m.usa_fencing_number ?? ""],
   ["LastName", (m) => m.last_name],
   ["FirstName", (m) => m.first_name],
@@ -103,24 +104,6 @@ const COLUMNS: [string, (m: MemberRow) => string][] = [
     (m) => (currentWaiver(m)?.athlete_coc_agreed ? "X" : ""),
   ],
 ];
-
-// Quote a cell only when it contains a comma, quote, or newline; double internal
-// quotes per RFC 4180.
-function csvCell(value: string): string {
-  if (/[",\n\r]/.test(value)) {
-    return `"${value.replace(/"/g, '""')}"`;
-  }
-  return value;
-}
-
-function buildCsv(members: MemberRow[]): string {
-  const header = COLUMNS.map(([name]) => csvCell(name)).join(",");
-  const lines = members.map((m) =>
-    COLUMNS.map(([, get]) => csvCell(get(m))).join(",")
-  );
-  // Leading BOM so Excel opens UTF-8 (accented names) correctly.
-  return "﻿" + [header, ...lines].join("\r\n");
-}
 
 // Weekly USA Fencing membership report pass. Extracted unchanged from the
 // former standalone /api/cron/usaf-report route — see
@@ -174,7 +157,7 @@ export async function runUsafReportPass() {
   }
 
   const members = rows as unknown as MemberRow[];
-  const csv = buildCsv(members);
+  const csv = buildCsv(COLUMNS, members);
   const today = new Date().toISOString().slice(0, 10); // YYYY-MM-DD (UTC)
   const filename = `dmfc-usaf-bulk-upload-${today}.csv`;
   const count = members.length;

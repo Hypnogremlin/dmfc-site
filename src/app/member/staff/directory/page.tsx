@@ -5,7 +5,8 @@ import { Eyebrow } from "@/components/Eyebrow";
 import { StripRule } from "@/components/StripRule";
 import { PrintDirectoryButton } from "@/components/volunteer/PrintDirectoryButton";
 import type { WeaponClass } from "@/lib/member-types";
-import { MEMBERSHIP_SEASON } from "@/lib/member-types";
+import { MEMBERSHIP_SEASON, WEAPON_LABELS } from "@/lib/member-types";
+import { ExportContactsButton } from "@/components/staff/ExportContactsButton";
 
 export const metadata: Metadata = {
   title: "Staff — Member Directory",
@@ -53,13 +54,6 @@ type DirectoryRow = {
   guardian_relationship: string | null;
   guardian_phone: string | null;
   emergency_contacts: EmergencyContactRow[];
-};
-
-const WEAPON_LABELS: Record<WeaponClass, string> = {
-  "foil-youth": "Foil (Youth)",
-  "foil-adult": "Foil (Adult)",
-  epee: "Epee",
-  saber: "Saber",
 };
 
 const PERSON_TYPE_LABELS: Record<DirectoryRow["person_type"], string> = {
@@ -120,7 +114,10 @@ export default async function StaffDirectoryPage({
             member on the club.
           </p>
         </div>
-        <PrintDirectoryButton />
+        <div className="flex items-center gap-3 flex-wrap">
+          <PrintDirectoryButton />
+          <ExportContactsButton />
+        </div>
       </div>
 
       <StripRule className="mt-12 mb-8 print:hidden" />
